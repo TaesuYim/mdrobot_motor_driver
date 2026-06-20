@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+.installed.cfg
+
+# 가상환경
+.venv/
+venv/
+env/
+
+# 테스트/커버리지 캐시
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# ROS 2 colcon 산출물
+/build/
+/install/
+/log/
+
+# C++ 빌드 (mdrobot_cpp)
+/build/
+*.o
+*.so
+
+# 에디터/OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
