@@ -1,0 +1,25 @@
+# mdrobot_ros2_driver — single-channel parameters.
+#
+# Edit the values here instead of passing options on the command line.
+#   ros2 launch mdrobot_ros2_driver single.launch.py
+# To use a different file:
+#   ros2 launch mdrobot_ros2_driver single.launch.py config:=/path/to/my.yaml
+#
+# "/**" applies these parameters to the node regardless of name/namespace.
+/**:
+  ros__parameters:
+    device_type: single
+    port: /dev/ttyUSB0
+    baudrate: 19200
+    motor_id: 1
+    command_timeout: 0.5      # s; auto-stop if no new cmd_velocity (0 disables)
+    publish_rate: 20.0        # Hz; joint_states
+    diag_rate: 2.0            # Hz; diagnostics
+    position_max_rpm: 100     # speed cap for cmd_position
+    auto_enable: true         # call enable() on startup
+    # -1 leave as-is / 0 disable / 1 enable; some controllers need 0 for serial drive
+    use_limit_sw: -1
+    # per channel; set to publish SI joint_states (rad/rad·s), e.g. [24.0]. [0.0] = raw
+    counts_per_rev: [0.0]
+    # joint name(s) for joint_states; [''] -> auto (motor1)
+    joint_names: ['']
