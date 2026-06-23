@@ -70,9 +70,14 @@ ros2 run mdrobot_ros2_driver motor_driver_node --ros-args --params-file config/s
 | srv | `~/enable` `~/disable` `~/stop` `~/brake` `~/torque_off` `~/reset_alarm` `~/reset_position` | `std_srvs/Trigger` |
 
 ```bash
-ros2 topic pub -1 /mdrobot_motor_driver/cmd_velocity std_msgs/msg/Float64MultiArray "{data: [40, 40]}"
+# velocity command — the array length MUST match the channel count
+ros2 topic pub -1 /mdrobot_motor_driver/cmd_velocity std_msgs/msg/Float64MultiArray "{data: [40]}"      # single
+ros2 topic pub -1 /mdrobot_motor_driver/cmd_velocity std_msgs/msg/Float64MultiArray "{data: [40, 40]}"  # dual
 ros2 service call /mdrobot_motor_driver/stop std_srvs/srv/Trigger
 ```
+
+> A wrong-length array is ignored with a warning (single needs `[rpm]`, dual needs
+> `[rpm1, rpm2]`).
 
 Topic/service names sit under the node name (and namespace if you set one);
 prefix accordingly.
@@ -88,14 +93,18 @@ ros2 run mdrobot_ros2_driver motor_driver_node --ros-args \
   -p device_type:=dual -p counts_per_rev:='[24.0, 24.0]'
 ```
 
-`counts_per_rev` is counts per **one revolution of the shaft you publish as that
-joint**. The value differs per motor (hall ≈ 3 × pole count; encoder = 4 × PPR),
-so **measure it**: turn that shaft a known N turns and compute Δcount / N
+`counts_per_rev` is counts per **one revolution of the motor shaft** — the
+controller reports both position (count) and speed (rpm) at the motor. The value
+differs per motor (hall ≈ 3 × pole count; encoder = 4 × PPR), so **measure it**:
+turn the motor shaft a known N turns and compute Δcount / N
 (see [`examples/calibrate_counts_per_rev.py`](../../examples/calibrate_counts_per_rev.py)).
-This node publishes per motor, so by default it is the motor shaft. If a gearbox
-sits between the motor and the shaft you model (e.g. a wheel), **measure at that
-output shaft** so the gear ratio is included — otherwise the SI angle and any
-downstream odometry are off by the gear ratio.
+
+Gear ratio is **not** applied here: `counts_per_rev` scales the position state only,
+while velocity is `rpm → rad/s` regardless. Measuring at a geared output shaft would
+make position the wheel angle but leave velocity at the motor rate, so the two would
+disagree by the gear ratio. Keep `counts_per_rev` at the motor and account for the
+gearbox in the robot layer above (e.g. set `diff_drive_controller`'s `wheel_radius`
+to the effective radius = wheel radius ÷ gear ratio).
 
 ## Shutting down the node
 

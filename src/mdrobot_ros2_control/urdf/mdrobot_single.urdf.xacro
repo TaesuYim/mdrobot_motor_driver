@@ -2,7 +2,7 @@
 <!-- Single-channel MDROBOT controller (e.g. MD400) as a ros2_control system. -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="mdrobot_single">
 
-  <xacro:arg name="port" default="/dev/ttyUSB1"/>
+  <xacro:arg name="port" default="/dev/ttyUSB0"/>
   <xacro:arg name="baudrate" default="19200"/>
   <xacro:arg name="motor_id" default="1"/>
   <!-- USE_LIMIT_SW: -1 leave as-is, 0 disable (often needed for serial drive), 1 enable. -->

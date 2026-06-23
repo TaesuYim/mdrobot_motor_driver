@@ -68,8 +68,9 @@ pip install -e 'src/mdrobot[serial]'    # [serial] pulls in pyserial
 ros2 launch mdrobot_ros2_driver single.launch.py   # single-channel
 ros2 launch mdrobot_ros2_driver dual.launch.py     # dual-channel
 
-# send a velocity command (dual: [rpm1, rpm2]; single: [rpm])
-ros2 topic pub -1 /mdrobot_motor_driver/cmd_velocity std_msgs/msg/Float64MultiArray "{data: [40, 40]}"
+# send a velocity command — single: [rpm], dual: [rpm1, rpm2] (length must match the channel count)
+ros2 topic pub -1 /mdrobot_motor_driver/cmd_velocity std_msgs/msg/Float64MultiArray "{data: [40]}"      # single
+ros2 topic pub -1 /mdrobot_motor_driver/cmd_velocity std_msgs/msg/Float64MultiArray "{data: [40, 40]}"  # dual
 # stop
 ros2 service call /mdrobot_motor_driver/stop std_srvs/srv/Trigger
 ```
@@ -79,9 +80,12 @@ ros2 service call /mdrobot_motor_driver/stop std_srvs/srv/Trigger
 ```python
 from mdrobot import SingleMotorDriver, DualMotorDriver
 
-# single-channel
+# read-only first — confirm comms without moving the motor
 with SingleMotorDriver.open("/dev/ttyUSB0") as d:
-    print(d.get_version(), d.get_voltage(), "V")
+    print(d.get_version(), d.get_voltage(), "V", d.get_status().active)
+
+# single-channel drive (motor turns)
+with SingleMotorDriver.open("/dev/ttyUSB0") as d:
     d.enable()             # required before motion (UI_COM=1 + START/STOP arm)
     d.set_velocity(40)     # signed rpm; + = CCW
     d.stop(); d.torque_off()
@@ -125,7 +129,7 @@ the wheels spin and odometry moves in RViz) or a **real** dual controller:
 colcon build --packages-select mdrobot_cpp mdrobot_ros2_control mdrobot_diffbot_example
 source install/setup.bash
 ros2 launch mdrobot_diffbot_example diffbot.launch.py                       # mock, RViz
-ros2 launch mdrobot_diffbot_example diffbot.launch.py use_mock_hardware:=false port:=/dev/ttyUSB1
+ros2 launch mdrobot_diffbot_example diffbot.launch.py use_mock_hardware:=false port:=/dev/ttyUSB0
 ```
 
 ## Documentation
@@ -142,7 +146,15 @@ Minimal runnable examples are in [`examples/`](examples/).
 
 ## Safety
 
-- Always call `enable()` before driving, **start at low speed**, and keep an emergency stop / power cut within reach.
+**First-run procedure** (before any motion):
+
+1. **Read-only check** — confirm comms without moving the motor:
+   `python3 examples/quickstart.py --port /dev/ttyUSB0 --type single`
+   (prints version / voltage / status / monitor; add `--drive` only when ready).
+2. **Stage the hardware** — low speed, no load, emergency stop / power cut within reach.
+3. **Enable, then drive** — `enable()` (`UI_COM=1` + `START/STOP` arm), command a low speed, watch one revolution.
+4. **Abort/recovery** — on anything unexpected: `stop()` + `torque_off()`, then cut power / e-stop.
+
 - The ROS 2 node auto-stops if no new velocity command arrives within `command_timeout` (default 0.5 s), and sends stop + torque-off on shutdown.
 - If a motor won't move, check in order: `enable()` → `START/STOP` arm → `use_limit_sw` (some controllers need `0` for serial drive). See the manual.
 

@@ -6,7 +6,7 @@
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="mdrobot_diffbot">
 
   <xacro:arg name="use_mock_hardware" default="true"/>
-  <xacro:arg name="port" default="/dev/ttyUSB1"/>
+  <xacro:arg name="port" default="/dev/ttyUSB0"/>
   <xacro:arg name="baudrate" default="19200"/>
   <xacro:arg name="motor_id" default="1"/>
   <!-- PNT50 measured: 12 counts/rev (hall, 3 x 4-pole). Measure for your motor. -->

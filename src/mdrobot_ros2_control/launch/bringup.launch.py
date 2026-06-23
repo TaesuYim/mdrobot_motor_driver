@@ -1,7 +1,7 @@
 # Copyright 2026 Taesu Yim. Licensed under Apache-2.0.
 """Bring up a MDROBOT controller through ros2_control.
 
-  ros2 launch mdrobot_ros2_control bringup.launch.py device_type:=single port:=/dev/ttyUSB1
+  ros2 launch mdrobot_ros2_control bringup.launch.py device_type:=single port:=/dev/ttyUSB0
   ros2 launch mdrobot_ros2_control bringup.launch.py device_type:=dual   port:=/dev/ttyUSB0
 
 Starts robot_state_publisher, the controller_manager (ros2_control_node), and
@@ -75,8 +75,8 @@ def generate_launch_description():
                 description="single (MD400) or dual (PNT50/MD400T)",
             ),
             DeclareLaunchArgument(
-                "port", default_value="/dev/ttyUSB1",
-                description="serial port (single default ttyUSB1, dual usually ttyUSB0)",
+                "port", default_value="/dev/ttyUSB0",
+                description="serial port (default /dev/ttyUSB0)",
             ),
             DeclareLaunchArgument(
                 "counts_per_rev", default_value="0.0",

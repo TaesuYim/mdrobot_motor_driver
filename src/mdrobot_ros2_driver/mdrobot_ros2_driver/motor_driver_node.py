@@ -19,16 +19,18 @@ Parameters:
   position_max_rpm (int=100)   max speed for position commands
   joint_names (str[])          empty -> auto by device_type (motor1[, motor2])
   auto_enable (bool=True)      call enable() on startup
-  counts_per_rev (double[])    counts per ONE revolution of the shaft you publish as
-                  this joint, per channel. If set, joint_states is published in SI
-                  (rad, rad/s); if unset / 0 / wrong length, raw units (count, rpm) are
-                  published and a warning is logged once. Measure it — turn that shaft
-                  exactly N revolutions and divide (examples/calibrate_counts_per_rev.py);
-                  the datasheet is not enough (hall ~ 3 x pole count, encoder 4 x PPR).
-                  This node publishes per MOTOR, so by default it is the motor shaft. If
-                  a gearbox sits between the motor and the shaft you model (e.g. a wheel),
-                  measure at THAT shaft so the gear ratio is included — otherwise the SI
-                  angle (and any downstream odometry) is off by the gear ratio.
+  counts_per_rev (double[])    counts per ONE revolution of the MOTOR shaft, per
+                  channel (the controller measures position and speed at the motor).
+                  If set, joint_states is published in SI (rad, rad/s); if unset / 0 /
+                  wrong length, raw units (count, rpm) are published and a warning is
+                  logged once. Measure it — turn the motor shaft exactly N revolutions
+                  and divide (examples/calibrate_counts_per_rev.py); the datasheet is
+                  not enough (hall ~ 3 x pole count, encoder 4 x PPR). Gear ratio is NOT
+                  applied here: counts_per_rev scales position only, while velocity is
+                  rpm -> rad/s regardless. Measuring at a geared output shaft would make
+                  position the wheel angle but leave velocity at the motor rate (the two
+                  then disagree by the gear ratio) — keep it at the motor and handle the
+                  gearbox in the robot layer above.
 
 Subscriptions (std_msgs/Float64MultiArray):
   ~/cmd_velocity  data=[rpm]            (single) | [rpm1, rpm2] (dual)

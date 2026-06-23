@@ -74,8 +74,12 @@ never assume.
 | `max_comm_errors` | `5` | consecutive read/write failures tolerated before the component goes to ERROR (rides out transient serial hiccups; the loop keeps the last state meanwhile) |
 
 `counts_per_rev` is a **per-joint** `<param>` — counts per **one revolution of the
-wheel/joint**, not the motor, when a gearbox is in between (measure at the output
-shaft so the ratio is included). See the [Python manual](python.md#unit-conversion-mdrobotunits).
+motor shaft** (the controller measures position and speed at the motor). Gear ratio
+is **not** applied here: it scales the position state only, while velocity is
+`rpm → rad/s` regardless, so a geared output-shaft value would make position and
+velocity disagree by the ratio. With a gearbox, keep `counts_per_rev` at the motor
+and set `diff_drive_controller`'s `wheel_radius` to the effective radius
+(wheel radius ÷ gear ratio). See the [Python manual](python.md#unit-conversion-mdrobotunits).
 
 ### Minimal URDF (single)
 
@@ -118,8 +122,11 @@ ros2 topic pub /diff_cont/cmd_vel geometry_msgs/msg/TwistStamped \
     "{twist: {linear: {x: 0.1}}}"
 ```
 
-`counts_per_rev:=0` (default) keeps the URDF's own value; a positive value
-overrides it.
+The launch arg `counts_per_rev:=0` (default) **keeps the URDF's own value** (single
+`24`, dual `12` — both positive, i.e. SI); a positive value overrides it. This is
+*not* the same as the per-joint `<param name="counts_per_rev">0</param>`, which
+selects **raw** (count/rpm) units — to publish raw, set the URDF `<param>` to `0`
+rather than the launch arg.
 
 For a complete, runnable robot (proper URDF geometry, RViz, mock/real switch,
 odometry + TF) see the **[`mdrobot_diffbot_example`](../../src/mdrobot_diffbot_example/README.md)**

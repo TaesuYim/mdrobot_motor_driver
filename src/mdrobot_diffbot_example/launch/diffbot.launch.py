@@ -5,7 +5,7 @@
   ros2 launch mdrobot_diffbot_example diffbot.launch.py
 
   # real PNT50 / MD400T:
-  ros2 launch mdrobot_diffbot_example diffbot.launch.py use_mock_hardware:=false port:=/dev/ttyUSB1
+  ros2 launch mdrobot_diffbot_example diffbot.launch.py use_mock_hardware:=false port:=/dev/ttyUSB0
 
 Drive it with TwistStamped on /diff_cont/cmd_vel, or:
   ros2 run teleop_twist_keyboard teleop_twist_keyboard \\
@@ -76,7 +76,7 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument("use_mock_hardware", default_value="true",
                               description="true: mock_components (no device); false: real MDROBOT dual"),
-        DeclareLaunchArgument("port", default_value="/dev/ttyUSB1",
+        DeclareLaunchArgument("port", default_value="/dev/ttyUSB0",
                               description="serial port (real hardware)"),
         DeclareLaunchArgument("counts_per_rev", default_value="12.0",
                               description="counts/rev per wheel motor (PNT50 measured: 12)"),

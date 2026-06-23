@@ -16,15 +16,30 @@ python -c "import mdrobot; print(mdrobot.__file__)"   # verify
 
 ## Connect
 
-1. Wire the RS485 (USB-serial) adapter to the controller's RS485 A/B. Default
-   link settings: **19200 8N1**, controller ID **1**.
-2. **Port permission (Linux)** — if your user is not in the `dialout` group:
+1. Wire the RS485 (USB-serial) adapter to the controller's RS485 A/B, and tie the
+   adapter and controller **GND** together. Default link settings: **19200 8N1**,
+   controller ID **1**.
+2. **Find the port.** The adapter usually enumerates as `/dev/ttyUSB0`; list the
+   candidates and watch which one appears when you plug it in:
+   ```bash
+   ls /dev/serial/by-id/        # stable per-adapter names (survive re-enumeration)
+   ls /dev/ttyUSB* /dev/ttyACM*
+   dmesg | grep -i tty | tail   # which device attached just now
+   ```
+   Prefer the `/dev/serial/by-id/...` path when you run more than one adapter.
+3. **Port permission (Linux)** — if your user is not in the `dialout` group:
    ```bash
    sudo usermod -aG dialout $USER   # then log out / back in
    sudo chmod a+rw /dev/ttyUSB0     # or, temporarily
    ```
-3. A controller is **dual-channel** if it answers the dual-only monitor
+4. A controller is **dual-channel** if it answers the dual-only monitor
    registers, otherwise it is **single-channel**.
+
+> **No reply / `IncompleteResponseError`?** The most common first-connection
+> causes are swapped **A/B** lines (try swapping them), a missing common **GND**,
+> or the wrong **baud rate / ID**. Termination/bias resistors are rarely needed on
+> a short, low-speed (19200) bus. Per-model verification status is in
+> [`tested-devices.md`](../dev/tested-devices.md).
 
 ## Quick start
 
@@ -219,11 +234,15 @@ d.client.write_register(reg.PID_USE_LIMIT_SW, 0)   # = write_register(17, 0)
 | `slow_seconds_to_raw(seconds, full_scale_s=15.0)` | `int` | Ramp seconds → raw (0–1023). |
 | `slow_raw_to_seconds(raw, full_scale_s=15.0)` | `float` | Raw → seconds. |
 
-`counts_per_rev` is counts per **one revolution of the shaft you measure**.
-Measure it — turn that shaft exactly N turns and divide
+`counts_per_rev` is counts per **one revolution of the motor shaft** — the
+controller reports both position (count) and speed (rpm) at the motor, so measure
+it there: turn the motor shaft exactly N turns and divide
 ([`examples/calibrate_counts_per_rev.py`](../../examples/calibrate_counts_per_rev.py)).
-If a gearbox sits between the motor and that shaft, measure at the output shaft so
-the gear ratio is included.
+Gear ratio is **not** applied here: `counts_to_rad` scales position only, while
+`rpm_to_rad_s` needs no `counts_per_rev`. Measuring at a geared output shaft would
+make position the output angle while velocity stayed the motor rate — the two would
+disagree by the gear ratio. Keep `counts_per_rev` at the motor and handle the
+gearbox / wheel in the layer above.
 
 ## Error handling
 

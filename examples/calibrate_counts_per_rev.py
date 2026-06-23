@@ -1,18 +1,24 @@
 #!/usr/bin/env python3
-"""Measure counts_per_rev — counts per output revolution, per motor.
+"""Measure counts_per_rev — counts per revolution of the MOTOR shaft, per motor.
 
 Publishing joint_states in rad needs the counts-per-revolution of each motor.
 It varies per motor (hall >= 3 x pole count; encoder = 4 x PPR) and depends on how
 the controller counts, so measure it instead of trusting the datasheet. Put the
 measured value into the ROS node `counts_per_rev` parameter (or your own conversion).
 
+Measure at the MOTOR shaft. The controller counts position (and reports speed) at
+the motor, and the rad/s conversion uses the motor rate, so a value taken at a
+geared output shaft would make position and velocity disagree by the gear ratio.
+Turn the motor shaft (not a geared output) and handle the gearbox in the layer
+above (e.g. diff_drive_controller wheel_radius).
+
 Two methods (you need an independent reference for the number of turns):
-  manual (default): torque_off the shaft, then turn it **exactly N revolutions**
+  manual (default): torque_off, then turn the MOTOR shaft **exactly N revolutions**
                     by hand -> delta_count / N. Safest and most accurate (no
                     commanded motion).
   driven          : spin slowly and press Enter at start / after N revolutions
-                    while watching a mark on the shaft -> delta_count / N.
-                    (for high gear ratios where you cannot turn it by hand)
+                    while watching a mark on the MOTOR shaft -> delta_count / N.
+                    (use when you cannot turn the motor shaft by hand)
 
 Safety: 'driven' turns the motor. Keep it unloaded, slow, e-stop ready. In
 'manual' the shaft also spins freely.
@@ -66,11 +72,11 @@ def main() -> int:
         try:
             if args.method == "manual":
                 driver.torque_off_both() if dual else driver.torque_off()
-                print(f"\n[manual] Shaft is free. Turn the output shaft **exactly {args.revs} revolutions**.")
+                print(f"\n[manual] Shaft is free. Turn the MOTOR shaft **exactly {args.revs} revolutions**.")
                 input("  Press Enter when done...")
             else:  # driven
                 driver.enable()
-                print(f"\n[driven] Spinning at {args.rpm} rpm. Count revolutions by a mark on the shaft. (motor turns)")
+                print(f"\n[driven] Spinning at {args.rpm} rpm. Count MOTOR-shaft revolutions by a mark. (motor turns)")
                 driver.set_velocities(args.rpm, args.rpm) if dual else driver.set_velocity(args.rpm)
                 input(f"  Press Enter the moment it has turned exactly {args.revs} revolutions...")
                 driver.stop()

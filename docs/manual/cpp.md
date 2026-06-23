@@ -31,8 +31,11 @@ and close the port on destruction (RAII) — the easiest entry point:
 ```cpp
 #include "mdrobot_cpp/device.hpp"
 
-// single-channel
+// single-channel — read-only first (no motion): confirm comms
 auto s = mdrobot::SingleMotorConnection::open("/dev/ttyUSB0");  // baud 19200, id 1
+std::cout << s->get_version() << " " << s->get_voltage() << " V\n";
+
+// drive (the motor turns)
 s->enable();                 // REQUIRED before motion
 s->set_velocity(40);         // signed rpm; + = CCW
 auto m = s->read_monitor();  // m.speed_rpm, m.position, m.current_a
@@ -178,8 +181,9 @@ hall_or_encoder_fail, inverse_velocity, stall;` + `uint8_t raw`.
 `counts_to_rad`, `rad_to_counts`, `rpm_to_rad_s`, `rad_s_to_rpm`,
 `slow_seconds_to_raw`, `slow_raw_to_seconds` — same semantics as the
 [Python `mdrobot.units`](python.md#unit-conversion-mdrobotunits). `counts_per_rev`
-is counts per **one revolution of the shaft you measure** (include the gearbox by
-measuring at the output shaft).
+is counts per **one revolution of the motor shaft**; it scales position only (speed
+is `rpm → rad/s` regardless), so keep it at the motor and handle any gearbox in the
+layer above.
 
 ## Error handling
 

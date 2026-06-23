@@ -38,7 +38,7 @@ spin and odometry moves with no controller hardware attached.
 
 ```bash
 ros2 launch mdrobot_diffbot_example diffbot.launch.py \
-    use_mock_hardware:=false port:=/dev/ttyUSB1 counts_per_rev:=12.0
+    use_mock_hardware:=false port:=/dev/ttyUSB0 counts_per_rev:=12.0
 ```
 
 ### Drive it
@@ -60,14 +60,17 @@ Odometry is on `/diff_cont/odom`; the `odom → base_footprint` TF is published.
 | arg | default | meaning |
 |---|---|---|
 | `use_mock_hardware` | `true` | `true`: mock (no device); `false`: real MDROBOT dual |
-| `port` | `/dev/ttyUSB1` | serial port (real hardware) |
+| `port` | `/dev/ttyUSB0` | serial port (real hardware) |
 | `counts_per_rev` | `12.0` | counts/rev per wheel motor (PNT50 measured: 12) |
 | `update_rate` | `0` (auto) | controller_manager Hz; `0` → mock 30 / real 15 |
 | `rviz` | `true` | launch RViz |
 
 > **Calibrate for your robot.** `wheel_radius` / `wheel_separation` in the URDF
 > and `config/diffbot_controllers.yaml` must match your chassis. `counts_per_rev`
-> must be **counts per one wheel revolution** — measure it by turning the *wheel*
-> (not the motor) exactly N turns, so any gearbox ratio is included; otherwise the
-> odometry is off by the gear ratio. The serial link bounds the loop rate — keep
-> the real dual at ~15 Hz.
+> is **counts per one revolution of the motor shaft** (the controller measures
+> position and speed at the motor) — measure it by turning the *motor* exactly N
+> turns. It scales the position state only; velocity is `rpm → rad/s` regardless,
+> so a wheel-shaft value would make the two disagree by the gear ratio. With a
+> gearbox, keep `counts_per_rev` at the motor and set `wheel_radius` to the
+> effective radius (wheel radius ÷ gear ratio) so odometry stays correct. The
+> serial link bounds the loop rate — keep the real dual at ~15 Hz.
