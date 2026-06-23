@@ -10,6 +10,7 @@ The project is a colcon workspace of complementary packages — use only what yo
 | [`mdrobot_ros2_driver`](src/mdrobot_ros2_driver) | A generic **ROS 2 node** (Python) that wraps the library and exposes per-motor velocity/position commands and motor state. |
 | [`mdrobot_cpp`](src/mdrobot_cpp) | **C++ communication library** — the same layers as `mdrobot` (POSIX `termios` transport, CRC, Modbus RTU, registers, status, units, single/dual drivers). `ament_cmake`. |
 | [`mdrobot_ros2_control`](src/mdrobot_ros2_control) | A C++ [`ros2_control`](https://control.ros.org) **`SystemInterface` plugin** wrapping `mdrobot_cpp`. One plugin for both shapes via `device_type` (single → 1 joint, dual → 2 joints); exports position/velocity/effort state and velocity/position command interfaces. |
+| [`mdrobot_diffbot_example`](src/mdrobot_diffbot_example) | An **example** differential-drive robot (URDF + `diff_drive_controller` + RViz) built on `mdrobot_ros2_control`. Runs with mock hardware (no device) or a real dual controller. |
 
 - **Single-channel** controllers (one motor) → `SingleMotorDriver`
 - **Dual-channel** controllers (two motors) → `DualMotorDriver`
@@ -26,7 +27,8 @@ mdrobot_motor_driver/            # this repo == a colcon workspace
     ├── mdrobot/                 # Python communication library (ament_python)
     ├── mdrobot_ros2_driver/     # Python ROS 2 node (ament_python), depends on mdrobot
     ├── mdrobot_cpp/             # C++ communication library (ament_cmake)
-    └── mdrobot_ros2_control/    # C++ ros2_control SystemInterface (ament_cmake), depends on mdrobot_cpp
+    ├── mdrobot_ros2_control/    # C++ ros2_control SystemInterface (ament_cmake), depends on mdrobot_cpp
+    └── mdrobot_diffbot_example/ # example diff-drive robot (URDF + diff_drive + RViz)
 docs/manual/                     # detailed user manual
 examples/                        # minimal standalone examples
 ```
@@ -113,6 +115,19 @@ robot's URDF `<ros2_control>` block; set `device_type`, `port`, per-joint `count
 (positive → SI rad/rad·s state & commands, otherwise raw count/rpm), and the gating options
 there. See the manual for the full parameter list and a diff-drive example.
 
+### Diff-drive example
+
+[`mdrobot_diffbot_example`](src/mdrobot_diffbot_example) is a complete differential-drive
+robot (URDF + `diff_drive_controller` + RViz). It runs with **mock hardware** (no device —
+the wheels spin and odometry moves in RViz) or a **real** dual controller:
+
+```bash
+colcon build --packages-select mdrobot_cpp mdrobot_ros2_control mdrobot_diffbot_example
+source install/setup.bash
+ros2 launch mdrobot_diffbot_example diffbot.launch.py                       # mock, RViz
+ros2 launch mdrobot_diffbot_example diffbot.launch.py use_mock_hardware:=false port:=/dev/ttyUSB1
+```
+
 ## Documentation
 
 Full usage, parameters, safety and troubleshooting are in the manual:
@@ -120,6 +135,7 @@ Full usage, parameters, safety and troubleshooting are in the manual:
 - **[ROS 2 usage](docs/manual/ros2.md)** — build, launch, parameters, topics/services, `joint_states` units, shutdown, troubleshooting
 - **[Python library usage](docs/manual/python.md)** — connect, read, drive, position control, API reference, raw access
 - **[ros2_control (C++)](docs/manual/ros2_control.md)** — `mdrobot_cpp` library + the `SystemInterface` plugin, URDF parameters, controllers, diff-drive example
+- **[Diff-drive example](src/mdrobot_diffbot_example/README.md)** — runnable differential-drive robot (URDF + `diff_drive_controller` + RViz), mock or real hardware
 
 Minimal runnable examples are in [`examples/`](examples/).
 

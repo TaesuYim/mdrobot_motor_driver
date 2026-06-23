@@ -121,6 +121,10 @@ ros2 topic pub /diff_cont/cmd_vel geometry_msgs/msg/TwistStamped \
 `counts_per_rev:=0` (default) keeps the URDF's own value; a positive value
 overrides it.
 
+For a complete, runnable robot (proper URDF geometry, RViz, mock/real switch,
+odometry + TF) see the **[`mdrobot_diffbot_example`](../../src/mdrobot_diffbot_example/README.md)**
+package.
+
 ## Notes
 
 - **Update rate:** each read+write cycle is a few 19200-baud round-trips. A dual
