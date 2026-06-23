@@ -98,8 +98,14 @@ class MdrobotSystemHardware : public hardware_interface::SystemInterface {
   bool auto_enable_ = true;
   int position_max_rpm_ = 100;
   double timeout_ = 0.3;
+  int max_comm_errors_ = 5;  ///< consecutive read/write failures tolerated before ERROR.
 
   std::vector<JointCfg> joints_;
+
+  // transient-fault tolerance: a single serial hiccup shouldn't deactivate the
+  // hardware. Count consecutive failures; only surface ERROR past the threshold.
+  int read_errors_ = 0;
+  int write_errors_ = 0;
 
   // --- communication stack (built in on_configure) ---
   std::unique_ptr<mdrobot::SerialTransport> transport_;

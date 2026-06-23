@@ -88,11 +88,14 @@ ros2 run mdrobot_ros2_driver motor_driver_node --ros-args \
   -p device_type:=dual -p counts_per_rev:='[24.0, 24.0]'
 ```
 
-The value differs per motor (hall ≈ 3 × pole count; encoder = 4 × PPR), so
-**measure it**: rotate the output shaft a known N turns and compute Δcount / N
+`counts_per_rev` is counts per **one revolution of the shaft you publish as that
+joint**. The value differs per motor (hall ≈ 3 × pole count; encoder = 4 × PPR),
+so **measure it**: turn that shaft a known N turns and compute Δcount / N
 (see [`examples/calibrate_counts_per_rev.py`](../../examples/calibrate_counts_per_rev.py)).
-Gear reduction is not included — this is motor-shaft based; wheel/odometry
-conversion belongs to a higher-level robot package.
+This node publishes per motor, so by default it is the motor shaft. If a gearbox
+sits between the motor and the shaft you model (e.g. a wheel), **measure at that
+output shaft** so the gear ratio is included — otherwise the SI angle and any
+downstream odometry are off by the gear ratio.
 
 ## Shutting down the node
 
@@ -122,5 +125,4 @@ torque-off and then exits. Notes:
 5. Alarm bit set? Call `~/reset_alarm`.
 6. Unstable readbacks may indicate a serial session desync (some adapters); the
    node cross-checks the version register on connect.
-```
 

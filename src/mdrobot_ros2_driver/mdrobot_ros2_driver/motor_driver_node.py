@@ -19,13 +19,16 @@ Parameters:
   position_max_rpm (int=100)   max speed for position commands
   joint_names (str[])          empty -> auto by device_type (motor1[, motor2])
   auto_enable (bool=True)      call enable() on startup
-  counts_per_rev (double[])    counts per revolution, per channel. If set, joint_states
-                  is published in SI (rad, rad/s). If unset / 0 / wrong length, raw
-                  units (count, rpm) are published and a warning is logged once. The
-                  value differs per motor (hall ~ 3 x pole count, encoder 4 x PPR) —
-                  measuring is recommended (examples/calibrate_counts_per_rev.py). Gear
-                  ratio is not included (motor-shaft based; wheel conversion belongs to
-                  a higher-level robot/odometry layer).
+  counts_per_rev (double[])    counts per ONE revolution of the shaft you publish as
+                  this joint, per channel. If set, joint_states is published in SI
+                  (rad, rad/s); if unset / 0 / wrong length, raw units (count, rpm) are
+                  published and a warning is logged once. Measure it — turn that shaft
+                  exactly N revolutions and divide (examples/calibrate_counts_per_rev.py);
+                  the datasheet is not enough (hall ~ 3 x pole count, encoder 4 x PPR).
+                  This node publishes per MOTOR, so by default it is the motor shaft. If
+                  a gearbox sits between the motor and the shaft you model (e.g. a wheel),
+                  measure at THAT shaft so the gear ratio is included — otherwise the SI
+                  angle (and any downstream odometry) is off by the gear ratio.
 
 Subscriptions (std_msgs/Float64MultiArray):
   ~/cmd_velocity  data=[rpm]            (single) | [rpm1, rpm2] (dual)

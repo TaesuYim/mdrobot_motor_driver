@@ -23,24 +23,20 @@ conversion). Run them with `colcon test --packages-select mdrobot_cpp`.
 ## `mdrobot_cpp` as a plain C++ library
 
 ```cpp
-#include "mdrobot_cpp/transport.hpp"
-#include "mdrobot_cpp/protocol.hpp"
 #include "mdrobot_cpp/device.hpp"
 
-mdrobot::SerialTransport transport("/dev/ttyUSB0", 19200);
-mdrobot::ModbusClient client(transport, /*slave_id=*/1);
-mdrobot::SingleMotorDriver drv(client);
-
-drv.enable();              // UI_COM=1 + START/STOP arm
-drv.set_velocity(40);      // signed rpm, + = CCW
-auto m = drv.read_monitor();   // m.speed_rpm, m.position, m.current_a
-drv.stop();
-drv.torque_off();
+auto s = mdrobot::SingleMotorConnection::open("/dev/ttyUSB0");  // owns the port
+s->enable();               // UI_COM=1 + START/STOP arm
+s->set_velocity(40);       // signed rpm, + = CCW
+auto m = s->read_monitor();    // m.speed_rpm, m.position, m.current_a
+s->stop();
+s->torque_off();
 ```
 
 The API mirrors the Python library (`DualMotorDriver` has `set_velocities`,
-`move_to_both`, per-channel getters, …). Raw access via `client.read_register` /
-`write_register` is always available. Link with `ament_target_dependencies(<tgt> mdrobot_cpp)`.
+`move_to_both`, per-channel getters, …). Link with
+`ament_target_dependencies(<tgt> mdrobot_cpp)`. **Full C++ API reference, error
+handling and object lifetime: [cpp.md](cpp.md).**
 
 ## The `SystemInterface` plugin
 
@@ -51,7 +47,8 @@ in your robot's URDF `<ros2_control>` block. One device shape per component:
 ### Interfaces (per joint)
 
 - **State:** `position`, `velocity`, `effort` (effort = raw motor current in A — a
-  proxy, not calibrated torque).
+  proxy, not calibrated torque). For **dual**, `read()` uses `PNT_MAIN_DATA` so the
+  current is real; under no load it is ~0 A.
 - **Command:** `velocity` and/or `position` (declare whichever your controller needs).
 
 ### Units
@@ -74,8 +71,11 @@ never assume.
 | `auto_enable` | `true` | call `enable()` on activation |
 | `position_max_rpm` | `100` | speed cap for position commands |
 | `timeout` | `0.3` | serial read timeout (s) |
+| `max_comm_errors` | `5` | consecutive read/write failures tolerated before the component goes to ERROR (rides out transient serial hiccups; the loop keeps the last state meanwhile) |
 
-`counts_per_rev` is a **per-joint** `<param>`.
+`counts_per_rev` is a **per-joint** `<param>` — counts per **one revolution of the
+wheel/joint**, not the motor, when a gearbox is in between (measure at the output
+shaft so the ratio is included). See the [Python manual](python.md#unit-conversion-mdrobotunits).
 
 ### Minimal URDF (single)
 

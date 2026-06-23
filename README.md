@@ -133,7 +133,8 @@ ros2 launch mdrobot_diffbot_example diffbot.launch.py use_mock_hardware:=false p
 Full usage, parameters, safety and troubleshooting are in the manual:
 
 - **[ROS 2 usage](docs/manual/ros2.md)** — build, launch, parameters, topics/services, `joint_states` units, shutdown, troubleshooting
-- **[Python library usage](docs/manual/python.md)** — connect, read, drive, position control, API reference, raw access
+- **[Python library usage](docs/manual/python.md)** — connect, read, drive, position control, API reference tables, error handling, raw access
+- **[C++ library usage](docs/manual/cpp.md)** — `mdrobot_cpp` API reference tables, `open()` factory, object lifetime, error handling
 - **[ros2_control (C++)](docs/manual/ros2_control.md)** — `mdrobot_cpp` library + the `SystemInterface` plugin, URDF parameters, controllers, diff-drive example
 - **[Diff-drive example](src/mdrobot_diffbot_example/README.md)** — runnable differential-drive robot (URDF + `diff_drive_controller` + RViz), mock or real hardware
 

@@ -64,6 +64,8 @@ CallbackReturn MdrobotSystemHardware::on_init(
     position_max_rpm_ = std::stoi(
         param_or(hp, "position_max_rpm", std::to_string(position_max_rpm_)));
     timeout_ = std::stod(param_or(hp, "timeout", std::to_string(timeout_)));
+    max_comm_errors_ = std::stoi(
+        param_or(hp, "max_comm_errors", std::to_string(max_comm_errors_)));
   } catch (const std::exception& e) {
     RCLCPP_ERROR(get_logger(), "bad hardware parameter: %s", e.what());
     return CallbackReturn::ERROR;
@@ -314,16 +316,25 @@ return_type MdrobotSystemHardware::read(const rclcpp::Time& /*time*/,
                                         const rclcpp::Duration& /*period*/) {
   try {
     if (is_dual()) {
-      mdrobot::DualMonitor mon = dual_->read_monitor();
+      // read_main_data (PNT_MAIN_DATA) carries current, so effort is real;
+      // PNT_MONITOR would report current=0.
+      mdrobot::DualMonitor mon = dual_->read_main_data();
       publish_joint_state(joints_[0], mon.motor1);
       publish_joint_state(joints_[1], mon.motor2);
     } else {
       publish_joint_state(joints_[0], single_->read_monitor());
     }
   } catch (const std::exception& e) {
-    RCLCPP_WARN(rclcpp::get_logger(kLogger), "read failed: %s", e.what());
-    return return_type::ERROR;
+    if (++read_errors_ >= max_comm_errors_) {
+      RCLCPP_ERROR(rclcpp::get_logger(kLogger),
+                   "read failed %d times in a row: %s", read_errors_, e.what());
+      return return_type::ERROR;
+    }
+    RCLCPP_WARN(rclcpp::get_logger(kLogger), "read failed (%d/%d): %s",
+                read_errors_, max_comm_errors_, e.what());
+    return return_type::OK;  // keep last state; tolerate a transient hiccup.
   }
+  read_errors_ = 0;
   return return_type::OK;
 }
 
@@ -379,9 +390,16 @@ return_type MdrobotSystemHardware::write(const rclcpp::Time& /*time*/,
       }
     }
   } catch (const std::exception& e) {
-    RCLCPP_WARN(rclcpp::get_logger(kLogger), "write failed: %s", e.what());
-    return return_type::ERROR;
+    if (++write_errors_ >= max_comm_errors_) {
+      RCLCPP_ERROR(rclcpp::get_logger(kLogger),
+                   "write failed %d times in a row: %s", write_errors_, e.what());
+      return return_type::ERROR;
+    }
+    RCLCPP_WARN(rclcpp::get_logger(kLogger), "write failed (%d/%d): %s",
+                write_errors_, max_comm_errors_, e.what());
+    return return_type::OK;  // tolerate a transient hiccup.
   }
+  write_errors_ = 0;
   return return_type::OK;
 }
 

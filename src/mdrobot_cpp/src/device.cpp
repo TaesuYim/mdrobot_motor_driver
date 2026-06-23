@@ -219,6 +219,14 @@ int DualMotorDriver::get_speed(int channel) {
   throw std::invalid_argument("channel must be 1 or 2, got " + std::to_string(channel));
 }
 
+double DualMotorDriver::get_current(int channel) {
+  // current lives in PNT_MAIN_DATA (PNT_MONITOR has none).
+  auto mon = read_main_data();
+  if (channel == 1) return mon.motor1.current_a.value_or(0.0);
+  if (channel == 2) return mon.motor2.current_a.value_or(0.0);
+  throw std::invalid_argument("channel must be 1 or 2, got " + std::to_string(channel));
+}
+
 std::pair<int32_t, int32_t> DualMotorDriver::get_positions() {
   auto mon = read_monitor();
   return {mon.motor1.position, mon.motor2.position};

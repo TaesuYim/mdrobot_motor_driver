@@ -66,6 +66,8 @@ Odometry is on `/diff_cont/odom`; the `odom → base_footprint` TF is published.
 | `rviz` | `true` | launch RViz |
 
 > **Calibrate for your robot.** `wheel_radius` / `wheel_separation` in the URDF
-> and `config/diffbot_controllers.yaml` must match your chassis, and
-> `counts_per_rev` must match your motors, for the odometry to be correct.
-> The serial link bounds the loop rate — keep the real dual at ~15 Hz.
+> and `config/diffbot_controllers.yaml` must match your chassis. `counts_per_rev`
+> must be **counts per one wheel revolution** — measure it by turning the *wheel*
+> (not the motor) exactly N turns, so any gearbox ratio is included; otherwise the
+> odometry is off by the gear ratio. The serial link bounds the loop rate — keep
+> the real dual at ~15 Hz.

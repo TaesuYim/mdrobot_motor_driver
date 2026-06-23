@@ -352,6 +352,15 @@ class DualMotorDriver(_DriverBase):
             return mon.motor2.speed_rpm
         raise ValueError(f"channel must be 1 or 2, got {channel}")
 
+    def get_current(self, channel: int) -> float:
+        """Motor current (A) of the given channel, from PNT_MAIN_DATA (PNT_MONITOR has none)."""
+        mon = self.read_main_data()
+        if channel == 1:
+            return mon.motor1.current_a or 0.0
+        if channel == 2:
+            return mon.motor2.current_a or 0.0
+        raise ValueError(f"channel must be 1 or 2, got {channel}")
+
     def get_positions(self) -> tuple[int, int]:
         """(motor1 position, motor2 position), from the dual monitor."""
         mon = self.read_monitor()

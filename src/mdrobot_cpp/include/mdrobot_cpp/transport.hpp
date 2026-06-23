@@ -53,6 +53,7 @@ class SerialTransport : public Transport {
  private:
   std::string port_;
   int baudrate_;
+  double write_timeout_;
   int fd_ = -1;
 };
 

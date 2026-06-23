@@ -100,6 +100,7 @@ class DualMotorDriver : public DriverBase {
   DualMonitor read_monitor();
   DualMonitor read_main_data();
   int get_speed(int channel);
+  double get_current(int channel);  ///< motor current (A) for channel (1 or 2).
   std::pair<int32_t, int32_t> get_positions();
   int32_t get_position(int channel);
   void reset_position();
@@ -123,6 +124,75 @@ class DualMotorDriver : public DriverBase {
   static uint16_t ch_flag_word(int channel);
   static uint16_t ch_pid(int channel, uint16_t pid1, uint16_t pid2);
   void write_pnt_posi_vel(uint16_t pid, int32_t pos1, int spd1, int32_t pos2, int spd2);
+};
+
+/// One-call owner of transport + client + driver (mirrors Python's
+/// `SingleMotorDriver.open(...)`). Owns the serial port; closes it on
+/// destruction (RAII). Access the driver via `->` or `driver()`.
+///
+///   auto conn = mdrobot::SingleMotorConnection::open("/dev/ttyUSB0");
+///   conn->enable();
+///   conn->set_velocity(40);
+///
+/// Non-copyable / non-movable (the driver references the owned client);
+/// returned by value through C++17 guaranteed copy elision.
+class SingleMotorConnection {
+ public:
+  static SingleMotorConnection open(const std::string& port, int baudrate = 19200,
+                                    uint8_t slave_id = 1) {
+    return SingleMotorConnection(port, baudrate, slave_id);
+  }
+
+  SingleMotorConnection(const SingleMotorConnection&) = delete;
+  SingleMotorConnection& operator=(const SingleMotorConnection&) = delete;
+  SingleMotorConnection(SingleMotorConnection&&) = delete;
+  SingleMotorConnection& operator=(SingleMotorConnection&&) = delete;
+
+  SingleMotorDriver& driver() { return driver_; }
+  SingleMotorDriver* operator->() { return &driver_; }
+  ModbusClient& client() { return client_; }
+
+ private:
+  SingleMotorConnection(const std::string& port, int baudrate, uint8_t slave_id)
+      : transport_(std::make_unique<SerialTransport>(port, baudrate)),
+        client_(*transport_, slave_id),
+        driver_(client_) {}
+
+  std::unique_ptr<SerialTransport> transport_;
+  ModbusClient client_;
+  SingleMotorDriver driver_;
+};
+
+/// One-call owner for a dual-channel controller. See SingleMotorConnection.
+///
+///   auto conn = mdrobot::DualMotorConnection::open("/dev/ttyUSB0");
+///   conn->enable();
+///   conn->set_velocities(40, 40);
+class DualMotorConnection {
+ public:
+  static DualMotorConnection open(const std::string& port, int baudrate = 19200,
+                                  uint8_t slave_id = 1) {
+    return DualMotorConnection(port, baudrate, slave_id);
+  }
+
+  DualMotorConnection(const DualMotorConnection&) = delete;
+  DualMotorConnection& operator=(const DualMotorConnection&) = delete;
+  DualMotorConnection(DualMotorConnection&&) = delete;
+  DualMotorConnection& operator=(DualMotorConnection&&) = delete;
+
+  DualMotorDriver& driver() { return driver_; }
+  DualMotorDriver* operator->() { return &driver_; }
+  ModbusClient& client() { return client_; }
+
+ private:
+  DualMotorConnection(const std::string& port, int baudrate, uint8_t slave_id)
+      : transport_(std::make_unique<SerialTransport>(port, baudrate)),
+        client_(*transport_, slave_id),
+        driver_(client_) {}
+
+  std::unique_ptr<SerialTransport> transport_;
+  ModbusClient client_;
+  DualMotorDriver driver_;
 };
 
 }  // namespace mdrobot

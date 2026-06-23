@@ -30,7 +30,7 @@ static speed_t to_speed(int baudrate) {
 SerialTransport::SerialTransport(const std::string& port, int baudrate,
                                  double timeout, double settle,
                                  double write_timeout)
-    : port_(port), baudrate_(baudrate) {
+    : port_(port), baudrate_(baudrate), write_timeout_(write_timeout) {
   fd_ = ::open(port.c_str(), O_RDWR | O_NOCTTY | O_NONBLOCK);
   if (fd_ < 0) {
     throw std::runtime_error("Failed to open " + port + ": " + std::strerror(errno));
@@ -89,12 +89,33 @@ SerialTransport::~SerialTransport() {
 
 std::size_t SerialTransport::write(const uint8_t* data, std::size_t len) {
   if (fd_ < 0) throw std::runtime_error("Port not open");
-  ssize_t n = ::write(fd_, data, len);
-  if (n < 0) {
-    throw std::runtime_error("write failed: " + std::string(std::strerror(errno)));
+  // POSIX write() may transfer fewer bytes than requested — loop until the
+  // whole frame is out (or write_timeout elapses), so frames are never split.
+  const auto deadline =
+      std::chrono::steady_clock::now() +
+      std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+          std::chrono::duration<double>(write_timeout_));
+  std::size_t total = 0;
+  while (total < len) {
+    ssize_t n = ::write(fd_, data + total, len - total);
+    if (n < 0) {
+      if (errno == EINTR) continue;
+      if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        if (std::chrono::steady_clock::now() >= deadline) {
+          throw std::runtime_error("write timeout");
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        continue;
+      }
+      throw std::runtime_error("write failed: " + std::string(std::strerror(errno)));
+    }
+    total += static_cast<std::size_t>(n);
+    if (total < len && std::chrono::steady_clock::now() >= deadline) {
+      throw std::runtime_error("write timeout (partial)");
+    }
   }
   ::tcdrain(fd_);  // wait for transmission to complete (like pyserial flush)
-  return static_cast<std::size_t>(n);
+  return total;
 }
 
 std::vector<uint8_t> SerialTransport::read(std::size_t size) {
