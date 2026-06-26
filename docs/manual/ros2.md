@@ -128,10 +128,14 @@ torque-off and then exits. Notes:
    `UI_COM=1` and arms `START/STOP`.
 2. **Single-channel**: some controllers need `USE_LIMIT_SW=0` for serial drive —
    set `use_limit_sw: 0` in the config file.
-3. **Dual-channel, motor 2 not turning**: handled by the driver (motor 2 uses its
+3. **Recent firmware, no encoder**: motor turns briefly then stops with an alarm
+   (~0.6 s) → **encoder mode**. Write `ENC_PPR (156) = 0` once with the Python/C++
+   library (the node has no parameter — it's a one-time controller setting). See
+   [README → Hardware setup](README.md#hardware-setup).
+4. **Dual-channel, motor 2 not turning**: handled by the driver (motor 2 uses its
    own command register).
-4. Some dual-channel controllers turn **~1 s after** the command.
-5. Alarm bit set? Call `~/reset_alarm`.
-6. Unstable readbacks may indicate a serial session desync (some adapters); the
+5. Some dual-channel controllers turn **~1 s after** the command.
+6. Alarm bit set? Call `~/reset_alarm`.
+7. Unstable readbacks may indicate a serial session desync (some adapters); the
    node cross-checks the version register on connect.
 

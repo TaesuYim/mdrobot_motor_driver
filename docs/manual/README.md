@@ -10,19 +10,18 @@ from the plain Python or C++ library, the ROS 2 node, or `ros2_control`.
 | **[ROS 2 node](ros2.md)** | `mdrobot_ros2_driver` — build, launch, parameters, topics/services, `joint_states` units, shutdown, troubleshooting. |
 | **[ros2_control (C++)](ros2_control.md)** | `mdrobot_ros2_control` — the `SystemInterface` plugin: URDF parameters, state/command interfaces, units, controllers, diff-drive example. |
 
-A complete runnable robot is the [`mdrobot_diffbot_example`](../../src/mdrobot_diffbot_example/README.md)
-package (URDF + `diff_drive_controller` + RViz, mock or real hardware).
-
 > Both single-channel (one motor) and dual-channel (two motors) controllers are
 > supported. The driver is **generic** — it exposes per-motor commands and state
 > and contains no robot kinematics; differential drive, odometry and limits
 > belong in the robot layer above it.
 
-## Safety first
+## Hardware setup
 
-- Test with the motor **unloaded** first, start at **low speed**, and keep an
-  emergency stop / power cut within reach.
-- `+` = CCW = increasing position; `-` = CW = decreasing position. Confirm the
-  real direction once in your installation.
-- Always `enable()` before sending motion (the ROS 2 node does this on startup
-  by default via `auto_enable`).
+If you are **not using an encoder**, send `ENC_PPR (156) = 0` once to set the encoder
+PPR to 0. (Recent firmware ships in encoder mode; older firmware such as v8.1 needs
+nothing here.)
+
+**Stop input:** for serial-only control, set `USE_LIMIT_SW (17) = 0`. To add a hardware
+stop switch on the CTRL connector, set `USE_LIMIT_SW = 1` and wire it to **pin 8
+(START/STOP)** — opening it stops the motor (pin 7 RUN/BRAKE is overridden by the
+continuous velocity command, so it won't stop a continuously-driven motor).

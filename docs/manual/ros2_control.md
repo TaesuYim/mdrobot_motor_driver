@@ -144,3 +144,6 @@ package.
 - **Safety:** start at low speed, no load, with an emergency stop within reach.
   This is a generic driver — soft limits, odometry and kinematics belong in the
   robot layer above it.
+- **Firmware & DIP:** recent firmware ships in encoder mode; driving without an
+  encoder needs `ENC_PPR (156) = 0` (one-time, set with the python/C++ library).
+  See [README → Hardware setup](README.md#hardware-setup).

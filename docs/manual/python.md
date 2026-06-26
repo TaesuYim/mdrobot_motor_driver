@@ -284,10 +284,13 @@ is `stop()` + `torque_off()` (the `with` block still closes the port).
 2. **Single-channel**: some controllers require `USE_LIMIT_SW = 0` (register 17)
    for serial drive. Connecting an encoder can make this mandatory (A/B share
    pins with limit inputs).
-3. **Dual-channel, motor 2 not turning**: `set_velocities()` commands motor 2 on
+3. **Recent firmware, no encoder**: if the motor turns briefly then stops with an
+   alarm (~0.6 s), it is in **encoder mode** — write `ENC_PPR (156) = 0` once. See
+   [README → Hardware setup](README.md#hardware-setup).
+4. **Dual-channel, motor 2 not turning**: `set_velocities()` commands motor 2 on
    its own register — already handled.
-4. Some dual controllers turn **~1 s after** the command — don't judge "stopped"
+5. Some dual controllers turn **~1 s after** the command — don't judge "stopped"
    too early.
-5. `get_status().alarm` set? Call `reset_alarm()`.
-6. Unstable readbacks → cross-check `get_version()` to confirm the transaction is
+6. `get_status().alarm` set? Call `reset_alarm()`.
+7. Unstable readbacks → cross-check `get_version()` to confirm the transaction is
    aligned (some adapters show session desync).

@@ -216,3 +216,6 @@ try {
 - Start at **low speed**, unloaded, with an emergency stop / power cut in reach.
 - This is a generic driver — soft limits, odometry and kinematics belong in the
   layer above it.
+- **Firmware & DIP:** recent firmware ships in encoder mode — driving without an
+  encoder needs `ENC_PPR (156) = 0`. See
+  [README → Hardware setup](README.md#hardware-setup).
