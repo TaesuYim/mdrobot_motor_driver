@@ -9,7 +9,7 @@ The project is a colcon workspace of complementary packages — use only what yo
 | [`mdrobot`](src/mdrobot) | Pure-Python communication library — framing, CRC, Modbus RTU protocol, registers, status, unit conversion — with **single-channel** and **dual-channel** motor driver classes. Usable on its own (plain Python / `pip`). |
 | [`mdrobot_ros2_driver`](src/mdrobot_ros2_driver) | A generic **ROS 2 node** (Python) that wraps the library and exposes per-motor velocity/position commands and motor state. |
 | [`mdrobot_cpp`](src/mdrobot_cpp) | **C++ communication library** — the same layers as `mdrobot` (POSIX `termios` transport, CRC, Modbus RTU, registers, status, units, single/dual drivers). `ament_cmake`. |
-| [`mdrobot_ros2_control`](src/mdrobot_ros2_control) | A C++ [`ros2_control`](https://control.ros.org) **`SystemInterface` plugin** wrapping `mdrobot_cpp`. One plugin for both shapes via `device_type` (single → 1 joint, dual → 2 joints); exports position/velocity/effort state and velocity/position command interfaces. |
+| [`mdrobot_ros2_control`](src/mdrobot_ros2_control) | A C++ [`ros2_control`](https://control.ros.org) **`SystemInterface` plugin** wrapping `mdrobot_cpp`. One plugin for every shape via `device_type` (single → 1 joint; dual → 2 joints on one two-channel controller; **twin → 2 joints on two single-channel controllers** at distinct slave ids on one bus, for a skid-steer base); exports position/velocity/effort state and velocity/position command interfaces. |
 | [`mdrobot_diffbot_example`](src/mdrobot_diffbot_example) | An **example** differential-drive robot (URDF + `diff_drive_controller` + RViz) built on `mdrobot_ros2_control`. Runs with mock hardware (no device) or a real dual controller. |
 
 - **Single-channel** controllers (one motor) → `SingleMotorDriver`
@@ -112,25 +112,19 @@ ros2 launch mdrobot_ros2_control bringup.launch.py \
 # dual (PNT50/MD400T) laid out as a diff-drive base
 ros2 launch mdrobot_ros2_control bringup.launch.py \
     device_type:=dual port:=/dev/ttyUSB0 counts_per_rev:=12
+
+# twin: two single-channel controllers (e.g. two MD400) on one bus at slave ids 1 & 2
+ros2 launch mdrobot_ros2_control bringup.launch.py \
+    device_type:=twin port:=/dev/ttyUSB0 motor_id_1:=1 motor_id_2:=2 reverse_2:=true
 ```
 
 The hardware plugin (`mdrobot_ros2_control/MdrobotSystemHardware`) is declared in the
 robot's URDF `<ros2_control>` block; set `device_type`, `port`, per-joint `counts_per_rev`
 (positive → SI rad/rad·s state & commands, otherwise raw count/rpm), and the gating options
-there. See the manual for the full parameter list and a diff-drive example.
-
-### Diff-drive example
-
-[`mdrobot_diffbot_example`](src/mdrobot_diffbot_example) is a complete differential-drive
-robot (URDF + `diff_drive_controller` + RViz). It runs with **mock hardware** (no device —
-the wheels spin and odometry moves in RViz) or a **real** dual controller:
-
-```bash
-colcon build --packages-select mdrobot_cpp mdrobot_ros2_control mdrobot_diffbot_example
-source install/setup.bash
-ros2 launch mdrobot_diffbot_example diffbot.launch.py                       # mock, RViz
-ros2 launch mdrobot_diffbot_example diffbot.launch.py use_mock_hardware:=false port:=/dev/ttyUSB0
-```
+there. **Twin** mode needs the two controllers re-IDed to distinct Modbus slave ids first
+(it is code-complete and unit-tested, but simultaneous diff-drive is not yet hardware-verified).
+See the manual for the full parameter list, twin mode, and a runnable diff-drive example
+([`mdrobot_diffbot_example`](src/mdrobot_diffbot_example)).
 
 ## Documentation
 
@@ -139,24 +133,27 @@ Full usage, parameters, safety and troubleshooting are in the manual:
 - **[ROS 2 usage](docs/manual/ros2.md)** — build, launch, parameters, topics/services, `joint_states` units, shutdown, troubleshooting
 - **[Python library usage](docs/manual/python.md)** — connect, read, drive, position control, API reference tables, error handling, raw access
 - **[C++ library usage](docs/manual/cpp.md)** — `mdrobot_cpp` API reference tables, `open()` factory, object lifetime, error handling
-- **[ros2_control (C++)](docs/manual/ros2_control.md)** — `mdrobot_cpp` library + the `SystemInterface` plugin, URDF parameters, controllers, diff-drive example
+- **[ros2_control (C++)](docs/manual/ros2_control.md)** — `mdrobot_cpp` library + the `SystemInterface` plugin, URDF parameters, controllers, twin mode
 - **[Diff-drive example](src/mdrobot_diffbot_example/README.md)** — runnable differential-drive robot (URDF + `diff_drive_controller` + RViz), mock or real hardware
 
 Minimal runnable examples are in [`examples/`](examples/).
 
-## Safety
+## Tested drivers & firmware
 
-**First-run procedure** (before any motion):
+Verified on real hardware (raw `PID_VERSION` DL byte is authoritative; the vX.Y is
+the doc convention `DL/10 . DL%10`):
 
-1. **Read-only check** — confirm comms without moving the motor:
-   `python3 examples/quickstart.py --port /dev/ttyUSB0 --type single`
-   (prints version / voltage / status / monitor; add `--drive` only when ready).
-2. **Stage the hardware** — low speed, no load, emergency stop / power cut within reach.
-3. **Enable, then drive** — `enable()` (`UI_COM=1` + `START/STOP` arm), command a low speed, watch one revolution.
-4. **Abort/recovery** — on anything unexpected: `stop()` + `torque_off()`, then cut power / e-stop.
+| Model | Type | Firmware (raw DL / approx.) | Verified |
+|---|---|---|---|
+| MD400 | single | DL=81 / v8.1 | identify, read, velocity (both directions), position (absolute/relative), ROS 2 node |
+| MD400 | single | DL=86 / v8.6 | ships in encoder mode → set `ENC_PPR (156) = 0` for hall closed-loop drive (counts/rev = 30); velocity, position, ROS 2 node; `PID_ID (133)` slave-id change |
+| PNT50 | dual | DL=45 / v4.5 | identify, read, velocity (both motors), position (simultaneous), ROS 2 node |
+| MD400T | dual | DL=72 / v7.2 | identify, read, velocity (both motors), position (simultaneous), ROS 2 node |
 
-- The ROS 2 node auto-stops if no new velocity command arrives within `command_timeout` (default 0.5 s), and sends stop + torque-off on shutdown.
-- If a motor won't move, check in order: `enable()` → `START/STOP` arm → `use_limit_sw` (some controllers need `0` for serial drive). See the manual.
+> **Twin mode** (two single-channel controllers on one bus) is **code-complete and
+> unit-tested**, and the `PID_ID` slave-id change is confirmed on MD400 v8.6, but two
+> controllers driving a base together have **not** yet been hardware-verified — treat
+> it as experimental.
 
 ## License
 

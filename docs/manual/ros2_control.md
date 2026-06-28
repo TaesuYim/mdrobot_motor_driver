@@ -42,13 +42,19 @@ handling and object lifetime: [cpp.md](cpp.md).**
 
 The plugin class is `mdrobot_ros2_control/MdrobotSystemHardware`. It is declared
 in your robot's URDF `<ros2_control>` block. One device shape per component:
-`device_type=single` → 1 joint, `device_type=dual` → 2 joints.
+
+- `device_type=single` → 1 joint (one single-channel controller, e.g. MD400).
+- `device_type=dual` → 2 joints (**one** two-channel controller, e.g. PNT50 / MD400T).
+- `device_type=twin` → 2 joints driven as **two** single-channel controllers on
+  one serial bus at distinct Modbus slave ids (e.g. two MD400 for a skid-steer
+  base). See [Twin mode](#twin-mode--two-single-channel-controllers-on-one-bus).
 
 ### Interfaces (per joint)
 
 - **State:** `position`, `velocity`, `effort` (effort = raw motor current in A — a
   proxy, not calibrated torque). For **dual**, `read()` uses `PNT_MAIN_DATA` so the
-  current is real; under no load it is ~0 A.
+  current is real; under no load it is ~0 A. For **twin**, each controller is read
+  independently, so current is real per wheel.
 - **Command:** `velocity` and/or `position` (declare whichever your controller needs).
 
 ### Units
@@ -63,10 +69,10 @@ never assume.
 
 | param | default | meaning |
 |---|---|---|
-| `device_type` | (from joint count) | `single` or `dual` |
+| `device_type` | (from joint count) | `single`, `dual`, or `twin`. Blank infers `single`/`dual` from the joint count; **`twin` must be set explicitly** (twin and dual both have 2 joints, so it cannot be inferred). |
 | `port` | `/dev/ttyUSB0` | serial port |
 | `baudrate` | `19200` | |
-| `motor_id` | `1` | Modbus slave id |
+| `motor_id` | `1` | Modbus slave id. For **twin** this is set **per joint** (`<param>` on the joint, see below), not on `<hardware>`. |
 | `use_limit_sw` | `-1` | `-1` leave as-is, `0` disable, `1` enable (some controllers need `0` for serial drive) |
 | `auto_enable` | `true` | call `enable()` on activation |
 | `position_max_rpm` | `100` | speed cap for position commands |
@@ -100,8 +106,97 @@ and set `diff_drive_controller`'s `wheel_radius` to the effective radius
 </ros2_control>
 ```
 
-Ready-to-use xacro for single and dual are under
+Ready-to-use xacro for single, dual and twin are under
 [`src/mdrobot_ros2_control/urdf/`](../../src/mdrobot_ros2_control/urdf/).
+
+### Twin mode — two single-channel controllers on one bus
+
+> **Status: code-complete and unit-tested; simultaneous diff-drive is not yet
+> hardware-verified.** The library (`mdrobot_cpp`) and the slave-id change have
+> been confirmed on real hardware, but two controllers driving a base together
+> have not. Treat twin as **experimental** until that is verified.
+
+`device_type=twin` drives **two separate single-channel controllers** (e.g. two
+MD400) over **one** serial bus, addressed by **distinct Modbus slave ids**, laid
+out as a 2-wheel differential base so `diff_drive_controller` can drive it.
+
+This is **not** `device_type=dual`:
+
+| | `dual` | `twin` |
+|---|---|---|
+| Hardware | **one** controller, two channels | **two** single-channel controllers |
+| Bus | one slave id | one bus, **two distinct slave ids** |
+| Per wheel | shared device | independent velocity / position, independent state |
+
+The library is unchanged: one `SerialTransport` feeds N `ModbusClient`s with
+different slave ids, each wrapping a `SingleMotorDriver`. The control loop is the
+single serial owner, so the two controllers are addressed in turn on the one bus.
+
+**Prerequisite — re-ID one controller.** Controllers ship at slave id `1`, so two
+on a bus collide. Change one to id `2` *before* wiring them together — with **only
+that one controller on the bus**, write `PID_ID (133)` with the wire word
+`(new_id << 8) | 0xAA` (high byte = new id, low byte = the `0xAA` write-check,
+e.g. id 2 → `0x02AA`), then power-cycle and confirm:
+
+```python
+from mdrobot import SingleMotorDriver
+with SingleMotorDriver.open("/dev/ttyUSB0") as d:   # only this unit on the bus
+    d.client.write_register(133, (2 << 8) | 0xAA)   # set this controller to id 2
+# power-cycle, then re-open and check it now answers at id 2
+```
+
+`on_init` rejects equal ids. *(Confirmed on MD400 v8.6; older firmware / dual
+controllers are untested for this write.)*
+
+**Per-joint `<param>`s** (the first joint is the left wheel, the second the right):
+
+| joint param | meaning |
+|---|---|
+| `motor_id` | this controller's Modbus slave id — **must differ** between the two joints |
+| `reverse` | `true`/`false`. A skid-steer mounts the two motors mirrored, so one side usually needs `reverse=true` for `+cmd_vel.x` to drive the base forward. Applied symmetrically to commands **and** feedback, so odometry stays consistent. Default `false` on both — drive the base, see which side spins backwards, then set it. |
+| `counts_per_rev` | per-wheel counts per rev (hall = `3 × pole count`). Left/right may differ if the motors are not matched; keep it **positive** (it is the SI gate — use `reverse` for direction, never a negative `counts_per_rev`). |
+
+**Partial-failure policy.** If one controller stops responding, the driver
+commands **zero speed to the other** wheel as well — a mobile base must not keep
+one wheel running at its last command and veer. Persistent failure takes the
+component to ERROR, which stops and torque-offs both. Because both motors sit
+behind one adapter (a single point of failure), do not rely on the soft stop
+alone — keep controller-side gating or a power cut available.
+
+**Update rate.** A twin cycle is ~4 serial round-trips (2× `read_monitor` + 2×
+velocity writes) — one more than dual — so `twin_controllers.yaml` sets
+`update_rate: 10`. Raise it only if a bench measurement of `read()+write()`
+confirms < 80 ms.
+
+#### Minimal URDF (twin)
+
+```xml
+<ros2_control name="mdrobot_twin" type="system">
+  <hardware>
+    <plugin>mdrobot_ros2_control/MdrobotSystemHardware</plugin>
+    <param name="device_type">twin</param>
+    <param name="port">/dev/ttyUSB0</param>
+  </hardware>
+  <joint name="motor1">                 <!-- left wheel -->
+    <command_interface name="velocity"/>
+    <state_interface name="position"/>
+    <state_interface name="velocity"/>
+    <state_interface name="effort"/>
+    <param name="motor_id">1</param>
+    <param name="reverse">false</param>
+    <param name="counts_per_rev">24</param>
+  </joint>
+  <joint name="motor2">                 <!-- right wheel -->
+    <command_interface name="velocity"/>
+    <state_interface name="position"/>
+    <state_interface name="velocity"/>
+    <state_interface name="effort"/>
+    <param name="motor_id">2</param>     <!-- must differ from motor1 -->
+    <param name="reverse">true</param>   <!-- mirrored mount -->
+    <param name="counts_per_rev">24</param>
+  </joint>
+</ros2_control>
+```
 
 ## Controllers & bringup
 
@@ -113,13 +208,22 @@ spawns the controllers from `config/<device_type>_controllers.yaml`:
   Needs `ros-jazzy-ros2-controllers`.
 - **dual** → `joint_state_broadcaster` + `diff_cont` (`diff_drive_controller`,
   `/diff_cont/cmd_vel`, `geometry_msgs/TwistStamped`).
+- **twin** → `joint_state_broadcaster` + `diff_cont`, same as dual but at
+  `update_rate: 10` and with the per-wheel `motor_id_*` / `reverse_*` /
+  `counts_per_rev_*` launch args below.
 
 ```bash
 ros2 launch mdrobot_ros2_control bringup.launch.py \
     device_type:=dual port:=/dev/ttyUSB0 counts_per_rev:=12
-# drive (dual): linear.x in m/s -> wheels
+# drive (dual or twin): linear.x in m/s -> wheels
 ros2 topic pub /diff_cont/cmd_vel geometry_msgs/msg/TwistStamped \
     "{twist: {linear: {x: 0.1}}}"
+
+# twin: two single controllers at slave ids 1 and 2, right wheel mirrored
+ros2 launch mdrobot_ros2_control bringup.launch.py \
+    device_type:=twin port:=/dev/ttyUSB0 \
+    motor_id_1:=1 motor_id_2:=2 reverse_2:=true \
+    counts_per_rev_1:=24 counts_per_rev_2:=24
 ```
 
 The launch arg `counts_per_rev:=0` (default) **keeps the URDF's own value** (single
@@ -137,7 +241,8 @@ package.
 - **Update rate:** each read+write cycle is a few 19200-baud round-trips. A dual
   cycle (monitor read + two velocity writes) is ~50 ms, so keep
   `controller_manager` `update_rate` around **15 Hz** for dual; higher rates
-  overrun.
+  overrun. **Twin** does two reads + two writes on the one bus, so it ships at
+  **10 Hz** (see `twin_controllers.yaml`).
 - **Lifecycle:** `on_configure` opens the port, `on_activate` enables, `on_deactivate`
   does stop + torque-off. Mode (velocity vs position) follows whichever command
   interface a controller claims.

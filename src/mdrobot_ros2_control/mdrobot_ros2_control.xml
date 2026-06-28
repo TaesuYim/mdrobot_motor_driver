@@ -4,7 +4,10 @@
          base_class_type="hardware_interface::SystemInterface">
     <description>
       ros2_control SystemInterface for MDROBOT MD-series motor controllers
-      (RS485 / Modbus RTU). device_type=single -> 1 joint, dual -> 2 joints.
+      (RS485 / Modbus RTU). device_type=single -> 1 joint (one controller);
+      dual -> 2 joints (one two-channel controller); twin -> 2 joints driven as
+      TWO single-channel controllers at distinct Modbus slave IDs on one bus
+      (per-joint motor_id), e.g. two MD400 for a skid-steer base.
     </description>
   </class>
 </library>

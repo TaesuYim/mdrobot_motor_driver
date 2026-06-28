@@ -1,0 +1,81 @@
+<?xml version="1.0"?>
+<!-- Twin: TWO single-channel MDROBOT controllers (e.g. two MD400) on ONE serial
+     bus at DISTINCT Modbus slave IDs, laid out as a 2-wheel differential base so
+     diff_drive_controller can drive it.
+
+     This is NOT device_type=dual. dual = one controller with two channels; twin =
+     two separate single-channel controllers, each with its own motor_id. Each
+     wheel can therefore use velocity or position independently.
+
+     PREREQUISITE (hardware, out of code): the two controllers must have DISTINCT
+     Modbus slave IDs. Factory default is 1, so re-ID one unit to 2 first (write
+     PID_ID(133); do it with only ONE unit on the bus). on_init rejects equal ids. -->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="mdrobot_twin">
+
+  <xacro:arg name="port" default="/dev/ttyUSB0"/>
+  <xacro:arg name="baudrate" default="19200"/>
+  <!-- Per-wheel Modbus slave IDs — MUST be distinct (see prerequisite above). -->
+  <xacro:arg name="motor_id_1" default="1"/>
+  <xacro:arg name="motor_id_2" default="2"/>
+  <!-- Per-wheel direction. A skid-steer mounts the two motors mirrored, so one
+       side usually needs reverse=true for +cmd_vel.x to drive the base forward.
+       Default false on both (no unverified assumption baked in): drive the base,
+       observe, then set reverse=true on whichever side spins the wrong way. -->
+  <xacro:arg name="reverse_1" default="false"/>
+  <xacro:arg name="reverse_2" default="false"/>
+  <!-- USE_LIMIT_SW: -1 leave as-is, 0 disable (often needed for serial drive), 1 enable. -->
+  <xacro:arg name="use_limit_sw" default="-1"/>
+  <xacro:arg name="auto_enable" default="true"/>
+  <!-- Per-wheel counts/rev (hall = 3 x pole count; MD400 8-pole ~ 24). Measure
+       each motor; left/right may differ if the motors are not matched. -->
+  <xacro:arg name="counts_per_rev_1" default="24.0"/>
+  <xacro:arg name="counts_per_rev_2" default="24.0"/>
+
+  <link name="base_link"/>
+  <link name="motor1_link"/>
+  <link name="motor2_link"/>
+  <joint name="motor1" type="continuous">
+    <parent link="base_link"/>
+    <child link="motor1_link"/>
+    <origin xyz="0 0.15 0"/>
+    <axis xyz="0 0 1"/>
+  </joint>
+  <joint name="motor2" type="continuous">
+    <parent link="base_link"/>
+    <child link="motor2_link"/>
+    <origin xyz="0 -0.15 0"/>
+    <axis xyz="0 0 1"/>
+  </joint>
+
+  <ros2_control name="mdrobot_twin" type="system">
+    <hardware>
+      <plugin>mdrobot_ros2_control/MdrobotSystemHardware</plugin>
+      <param name="device_type">twin</param>
+      <param name="port">$(arg port)</param>
+      <param name="baudrate">$(arg baudrate)</param>
+      <param name="use_limit_sw">$(arg use_limit_sw)</param>
+      <param name="auto_enable">$(arg auto_enable)</param>
+      <param name="position_max_rpm">100</param>
+    </hardware>
+    <!-- first joint -> controller motor_id_1 (left) -->
+    <joint name="motor1">
+      <command_interface name="velocity"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+      <param name="motor_id">$(arg motor_id_1)</param>
+      <param name="reverse">$(arg reverse_1)</param>
+      <param name="counts_per_rev">$(arg counts_per_rev_1)</param>
+    </joint>
+    <!-- second joint -> controller motor_id_2 (right) -->
+    <joint name="motor2">
+      <command_interface name="velocity"/>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+      <param name="motor_id">$(arg motor_id_2)</param>
+      <param name="reverse">$(arg reverse_2)</param>
+      <param name="counts_per_rev">$(arg counts_per_rev_2)</param>
+    </joint>
+  </ros2_control>
+</robot>

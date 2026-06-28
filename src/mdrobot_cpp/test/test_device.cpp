@@ -467,3 +467,55 @@ TEST(Device, DualPositionSlowPerChannel) {
   EXPECT_EQ(dev.frames[0], w1(PID_POSI_SS1, 1023));
   EXPECT_EQ(dev.frames[1], w1(PID_POSI_SD2, 1023));
 }
+
+// --- twin: N single drivers on ONE bus at DISTINCT slave IDs ----------------
+// Underpins device_type=twin in mdrobot_ros2_control: one transport backs N
+// ModbusClient with different slave_ids, each feeding a SingleMotorDriver. The
+// frames must carry the per-client slave id so the two controllers don't collide.
+
+TEST(Device, TwinTwoClientsOneTransportDistinctSlaveIds) {
+  FakeDevice dev({{PID_VERSION, {0x2D}}});
+  ModbusClient c1(dev, 1);
+  ModbusClient c2(dev, 2);
+  SingleMotorDriver d1(c1);
+  SingleMotorDriver d2(c2);
+
+  // Both controllers answer independently on the shared bus.
+  EXPECT_TRUE(d1.ping());
+  EXPECT_TRUE(d2.ping());
+
+  // Commands are addressed to each client's own slave id.
+  d1.set_velocity(40);
+  d2.set_velocity(-40);
+
+  ASSERT_EQ(dev.frames.size(), 4u);
+  // ping = read PID_VERSION; verify the read requests carry the right slave id.
+  EXPECT_EQ(dev.frames[0], build_read_request(1, PID_VERSION, 1));
+  EXPECT_EQ(dev.frames[1], build_read_request(2, PID_VERSION, 1));
+  // set_velocity writes carry the right slave id (40 / -40 two's complement).
+  EXPECT_EQ(dev.frames[2], build_write_single_request(1, PID_VEL_CMD, 40));
+  EXPECT_EQ(dev.frames[3], build_write_single_request(2, PID_VEL_CMD, 0xFFD8));
+}
+
+TEST(Device, TwinIndependentPositionAndUseLimitSwPerSlave) {
+  FakeDevice dev;
+  ModbusClient c1(dev, 1);
+  ModbusClient c2(dev, 2);
+  SingleMotorDriver d1(c1);
+  SingleMotorDriver d2(c2);
+
+  // USE_LIMIT_SW is written to each single controller's own slave id (no SW2).
+  c1.write_register(PID_USE_LIMIT_SW, 0);
+  c2.write_register(PID_USE_LIMIT_SW, 0);
+  // Each wheel takes an independent absolute move on its own slave id.
+  d1.move_to(80, 50);
+  d2.move_to(-80, 50);
+
+  ASSERT_EQ(dev.frames.size(), 4u);
+  EXPECT_EQ(dev.frames[0], build_write_single_request(1, PID_USE_LIMIT_SW, 0));
+  EXPECT_EQ(dev.frames[1], build_write_single_request(2, PID_USE_LIMIT_SW, 0));
+  EXPECT_EQ(dev.frames[2],
+            build_write_multiple_request(1, PID_POSI_VEL_CMD, {80, 0, 50}));
+  EXPECT_EQ(dev.frames[3],
+            build_write_multiple_request(2, PID_POSI_VEL_CMD, {0xFFB0, 0xFFFF, 50}));
+}

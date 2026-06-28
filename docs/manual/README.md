@@ -8,7 +8,7 @@ from the plain Python or C++ library, the ROS 2 node, or `ros2_control`.
 | **[Python library](python.md)** | `mdrobot` — connect, read, drive, position control, slow ramps, raw registers, unit conversion, **full API reference (tables)**, error handling. |
 | **[C++ library](cpp.md)** | `mdrobot_cpp` — same API in C++ (`*Connection::open` factory, object lifetime, **API reference tables**, error handling). |
 | **[ROS 2 node](ros2.md)** | `mdrobot_ros2_driver` — build, launch, parameters, topics/services, `joint_states` units, shutdown, troubleshooting. |
-| **[ros2_control (C++)](ros2_control.md)** | `mdrobot_ros2_control` — the `SystemInterface` plugin: URDF parameters, state/command interfaces, units, controllers, diff-drive example. |
+| **[ros2_control (C++)](ros2_control.md)** | `mdrobot_ros2_control` — the `SystemInterface` plugin: URDF parameters, state/command interfaces, units, controllers, and **twin mode** (two single-channel controllers on one bus). |
 
 > Both single-channel (one motor) and dual-channel (two motors) controllers are
 > supported. The driver is **generic** — it exposes per-motor commands and state
@@ -25,3 +25,9 @@ nothing here.)
 stop switch on the CTRL connector, set `USE_LIMIT_SW = 1` and wire it to **pin 8
 (START/STOP)** — opening it stops the motor (pin 7 RUN/BRAKE is overridden by the
 continuous velocity command, so it won't stop a continuously-driven motor).
+
+**Two controllers on one bus (twin):** to drive a skid-steer base from two
+single-channel controllers (e.g. two MD400) over one RS485 bus, give each a
+distinct Modbus slave id first — write `PID_ID (133)` on one unit with the
+`mdrobot` library (only that unit on the bus), then use `device_type=twin`. See
+[ros2_control → Twin mode](ros2_control.md#twin-mode--two-single-channel-controllers-on-one-bus).

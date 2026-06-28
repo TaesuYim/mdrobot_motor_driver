@@ -66,10 +66,19 @@ class MdrobotSystemHardware : public hardware_interface::SystemInterface {
   /// Active command interface for a joint at any moment.
   enum class CmdMode { kNone, kVelocity, kPosition };
 
+  /// Controller topology.
+  ///   kSingle: one controller, one joint (MD400, ...).
+  ///   kDual:   one two-channel controller, two joints (PNT50, MD400T, ...).
+  ///   kTwin:   two single-channel controllers on ONE serial bus at DISTINCT
+  ///            Modbus slave IDs, two joints (e.g. two MD400 for a skid-steer base).
+  enum class DeviceType { kSingle, kDual, kTwin };
+
   /// Per-joint configuration parsed from the URDF.
   struct JointCfg {
     std::string name;
     double counts_per_rev = 0.0;  ///< >0 -> SI units; 0 -> raw (count, rpm).
+    uint8_t slave_id = 1;         ///< Modbus slave id (single/twin: per joint).
+    int direction = 1;            ///< +1, or -1 to invert a mirrored wheel (reverse param).
     bool has_velocity_cmd = false;
     bool has_position_cmd = false;
     bool has_position_state = false;
@@ -80,7 +89,6 @@ class MdrobotSystemHardware : public hardware_interface::SystemInterface {
     bool position_cmd_valid = false;     ///< a position goal has been issued.
   };
 
-  bool is_dual() const { return joints_.size() == 2; }
   /// Default mode when only one command interface is declared.
   static CmdMode default_mode(const JointCfg& j);
   /// Convert a joint's commanded velocity (cmd units) to signed motor rpm.
@@ -89,11 +97,18 @@ class MdrobotSystemHardware : public hardware_interface::SystemInterface {
   int32_t position_cmd_to_counts(const JointCfg& j, double cmd) const;
   /// Push state into the exported interfaces for one joint from a Monitor.
   void publish_joint_state(const JointCfg& j, const mdrobot::Monitor& mon);
+  /// Issue one joint's active velocity/position command on its own driver
+  /// (single + each twin wheel). Mutates the joint's position bookkeeping.
+  void write_single_joint(JointCfg& j, mdrobot::SingleMotorDriver& drv);
+  /// Tear down the comm stack in dependency order (drivers -> dual -> clients ->
+  /// transport). Idempotent — run at on_configure entry and from on_cleanup.
+  void reset_comm();
 
   // --- configuration (from URDF <hardware> params) ---
+  DeviceType device_type_ = DeviceType::kSingle;  ///< resolved in on_init.
   std::string port_ = "/dev/ttyUSB0";
   int baudrate_ = 19200;
-  uint8_t slave_id_ = 1;
+  uint8_t slave_id_ = 1;     ///< hw-level motor_id (single/dual; twin uses per-joint).
   int use_limit_sw_ = -1;   ///< -1 leave as-is, 0 disable, 1 enable.
   bool auto_enable_ = true;
   int position_max_rpm_ = 100;
@@ -108,10 +123,15 @@ class MdrobotSystemHardware : public hardware_interface::SystemInterface {
   int write_errors_ = 0;
 
   // --- communication stack (built in on_configure) ---
+  // Declaration order is load-bearing: a SingleMotorDriver references a
+  // ModbusClient which references the SerialTransport, so destruction (reverse of
+  // declaration) must run drivers_ -> dual_ -> clients_ -> transport_. The
+  // unique_ptr indirection keeps each DriverBase's ModbusClient& stable across
+  // vector growth — do NOT flatten clients_/drivers_ to by-value vectors.
   std::unique_ptr<mdrobot::SerialTransport> transport_;
-  std::unique_ptr<mdrobot::ModbusClient> client_;
-  std::unique_ptr<mdrobot::SingleMotorDriver> single_;
-  std::unique_ptr<mdrobot::DualMotorDriver> dual_;
+  std::vector<std::unique_ptr<mdrobot::ModbusClient>> clients_;   ///< one per controller.
+  std::vector<std::unique_ptr<mdrobot::SingleMotorDriver>> drivers_;  ///< single/twin.
+  std::unique_ptr<mdrobot::DualMotorDriver> dual_;                ///< dual only (uses clients_[0]).
 };
 
 }  // namespace mdrobot_ros2_control
