@@ -29,6 +29,8 @@ def launch_setup(context, *args, **kwargs):
     use_mock = LaunchConfiguration("use_mock_hardware").perform(context)
     port = LaunchConfiguration("port")
     cpr = LaunchConfiguration("counts_per_rev")
+    rev_l = LaunchConfiguration("reverse_left")
+    rev_r = LaunchConfiguration("reverse_right")
     rate_arg = LaunchConfiguration("update_rate").perform(context)
 
     mock = use_mock.lower() in ("true", "1", "yes")
@@ -45,6 +47,8 @@ def launch_setup(context, *args, **kwargs):
             " use_mock_hardware:=", use_mock,
             " port:=", port,
             " counts_per_rev:=", cpr,
+            " reverse_left:=", rev_l,
+            " reverse_right:=", rev_r,
         ])
     }
 
@@ -80,6 +84,10 @@ def generate_launch_description():
                               description="serial port (real hardware)"),
         DeclareLaunchArgument("counts_per_rev", default_value="12.0",
                               description="counts/rev per wheel motor (PNT50 measured: 12)"),
+        DeclareLaunchArgument("reverse_left", default_value="false",
+                              description="reverse left wheel (mirrored mount)"),
+        DeclareLaunchArgument("reverse_right", default_value="false",
+                              description="reverse right wheel (mirrored mount)"),
         DeclareLaunchArgument("update_rate", default_value="0",
                               description="controller_manager Hz; 0 = auto (mock 30 / real 15)"),
         DeclareLaunchArgument("rviz", default_value="true",

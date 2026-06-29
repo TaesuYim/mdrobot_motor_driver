@@ -28,9 +28,10 @@ conversion). Run them with `colcon test --packages-select mdrobot_cpp`.
 auto s = mdrobot::SingleMotorConnection::open("/dev/ttyUSB0");  // owns the port
 s->enable();               // UI_COM=1 + START/STOP arm
 s->set_velocity(40);       // signed rpm, + = CCW
+std::this_thread::sleep_for(std::chrono::seconds(2));  // hold so it turns (needs <thread>/<chrono>)
 auto m = s->read_monitor();    // m.speed_rpm, m.position, m.current_a
 s->stop();
-s->torque_off();
+s->torque_off();           // destruction closes the port but does NOT stop a moving motor
 ```
 
 The API mirrors the Python library (`DualMotorDriver` has `set_velocities`,
@@ -59,10 +60,11 @@ in your robot's URDF `<ros2_control>` block. One device shape per component:
 
 ### Units
 
-A joint with a **positive `counts_per_rev`** exports SI (`position` = rad,
-`velocity` = rad/s) and accepts SI commands. Without it the joint stays raw
-(`position` = count, `velocity` = rpm). The value is per motor — hall feedback is
-`3 × pole count` (e.g. 24 for 8-pole, 30 for 10-pole, 12 for 4-pole). Measure it;
+A joint with a **positive `counts_per_rev`** exports SI (`position` = rad, `velocity` =
+rad/s) **and accepts SI commands** — note this differs from the Python node, whose
+command topics stay raw regardless (see [ros2.md](ros2.md#joint_states-units)). Without
+it the joint stays raw (`position` = count, `velocity` = rpm). The value is per motor —
+hall ≈ 3 × pole count (e.g. 24 for 8-pole, 30 for 10-pole, 12 for 4-pole). Measure it;
 never assume.
 
 ### Hardware parameters
@@ -244,7 +246,7 @@ ros2 topic pub /diff_cont/cmd_vel geometry_msgs/msg/TwistStamped \
 (`count`, `rpm`). Set it per wheel in the yaml (`counts_per_rev` for single/dual,
 `counts_per_rev_L` / `counts_per_rev_R` for twin). For single/dual you can also
 override it on the command line with `counts_per_rev:=<value>` (empty, the default,
-keeps the yaml value).
+keeps the yaml value). See [Python manual → Unit conversion](python.md#unit-conversion-mdrobotunits).
 
 For a complete, runnable robot (proper URDF geometry, RViz, mock/real switch,
 odometry + TF) see the **[`mdrobot_diffbot_example`](../../src/mdrobot_diffbot_example/README.md)**
@@ -257,6 +259,21 @@ package.
   `controller_manager` `update_rate` around **15 Hz** for dual; higher rates
   overrun. **Twin** does two reads + two writes on the one bus, so it ships at
   **10 Hz** (see `twin_controllers.yaml`).
+- **Measuring the cycle.** "Raise `update_rate` only if `read()+write()` < 80 ms" needs
+  a measurement — time one read+write round-trip on your bus:
+  ```python
+  import time
+  from mdrobot import DualMotorDriver
+  with DualMotorDriver.open("/dev/ttyUSB0") as d:
+      t = time.perf_counter()
+      d.read_main_data(); d.set_velocities(0, 0)
+      print(f"{(time.perf_counter() - t) * 1e3:.1f} ms")   # keep update_rate period above this
+  ```
+- **timeout vs update_rate vs max_comm_errors.** The serial `timeout` (0.3 s) is a few
+  times the loop period, so one timed-out read overruns a cycle; the loop keeps the last
+  state and rides out up to `max_comm_errors` (5) consecutive failures before going to
+  ERROR — i.e. a worst-case ride-out of `timeout × max_comm_errors` ≈ 1.5 s. Lower
+  `timeout` or `max_comm_errors` if you need to fault faster.
 - **Lifecycle:** `on_configure` opens the port, `on_activate` enables, `on_deactivate`
   does stop + torque-off. Mode (velocity vs position) follows whichever command
   interface a controller claims.

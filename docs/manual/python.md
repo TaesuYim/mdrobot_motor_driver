@@ -32,12 +32,25 @@ python -c "import mdrobot; print(mdrobot.__file__)"   # verify
    sudo usermod -aG dialout $USER   # then log out / back in
    sudo chmod a+rw /dev/ttyUSB0     # or, temporarily
    ```
-4. A controller is **dual-channel** if it answers the dual-only monitor
-   registers, otherwise it is **single-channel**.
+   On **Windows** the port is `COMx` (e.g. `COM3`); on **macOS** it is
+   `/dev/cu.usbserial-*`. The permission commands above are Linux-only.
+4. A controller is **dual-channel** if it answers the dual-only monitor register
+   `PID_PNT_MONITOR (216)`, otherwise it is **single-channel**:
+   ```python
+   from mdrobot import DualMotorDriver, registers as reg
+   from mdrobot.exceptions import MdrobotError
+   with DualMotorDriver.open("/dev/ttyUSB0") as d:
+       try:
+           d.client.read_registers(reg.PID_PNT_MONITOR, 7)
+           print("dual")
+       except MdrobotError:
+           print("single")
+   ```
 
-> **No reply / `IncompleteResponseError`?** The most common first-connection
-> causes are swapped **A/B** lines (try swapping them), a missing common **GND**,
-> or the wrong **baud rate / ID**. Termination/bias resistors are rarely needed on
+> **No reply / `IncompleteResponseError`?** Check, in order: the **port** is right
+> (it can become `ttyUSB1` after re-plugging or a reboot — re-check `ls /dev/ttyUSB*`,
+> or use a stable `/dev/serial/by-id/...` path); swapped **A/B** lines (try swapping
+> them); a missing common **GND**; the wrong **baud rate / ID**. Termination/bias resistors are rarely needed on
 > a short, low-speed (19200) bus. Per-model verification status is in
 > [`tested-devices.md`](../dev/tested-devices.md).
 
@@ -53,18 +66,25 @@ with SingleMotorDriver.open("/dev/ttyUSB0") as d:
     print(d.read_monitor())          # speed / current / position
 
 # --- single-channel drive ---
+import time
 with SingleMotorDriver.open("/dev/ttyUSB0") as d:
     d.enable()                       # REQUIRED before motion
-    d.set_velocity(40)               # signed rpm; + = CCW
-    d.stop(); d.torque_off()
+    try:
+        d.set_velocity(40)           # signed rpm; + = CCW
+        time.sleep(2.0)              # hold ~2 s so you actually SEE it turn (no dwell = a twitch)
+    finally:
+        d.stop(); d.torque_off()     # always stop — even on Ctrl-C / an exception
     d.reset_position()
     d.move_to(80, speed=60); d.wait_in_position()   # absolute move (counts)
 
 # --- dual-channel drive ---
 with DualMotorDriver.open("/dev/ttyUSB0") as d:
     d.enable()
-    d.set_velocities(40, 40)         # motor 1, motor 2
-    d.stop(); d.torque_off_both()
+    try:
+        d.set_velocities(40, 40)     # motor 1, motor 2
+        time.sleep(2.0)              # some controllers start ~1 s late — hold, don't send 0 early
+    finally:
+        d.stop(); d.torque_off_both()
 ```
 
 > **`enable()` is required before any motion.** It sets `UI_COM = 1` (serial
@@ -74,6 +94,21 @@ with DualMotorDriver.open("/dev/ttyUSB0") as d:
 > **Sign / direction:** `+` = CCW = increasing position; `-` = CW = decreasing
 > (single and dual alike). Some dual controllers start turning **~1 s after** the
 > command — don't send `0` immediately or you'll miss the motion.
+
+> **Before the first drive — checklist.** Run these once, in order; each line is one
+> call. Skip a step only if it clearly does not apply to your controller:
+>
+> 1. **Comms, read-only** — `print(d.get_version(), d.get_voltage())` (no motion).
+> 2. **No encoder?** `d.client.write_register(156, 0)` (`ENC_PPR = 0`). Recent firmware
+>    (e.g. MD400 v8.6) ships in encoder mode and will **lurch ~0.6 s then alarm** on
+>    the first command until this is set once. *(The motor may move briefly here — keep
+>    clear.)*
+> 3. **Serial-only drive?** Some controllers need `d.client.write_register(17, 0)`
+>    (`USE_LIMIT_SW = 0`).
+> 4. **Arm motion** — `d.enable()` (required; otherwise velocity is echoed but the
+>    motor does not turn).
+> 5. **Drive low + dwell + keep a stop in reach** — low rpm, hold ≥ ~1.5 s to see real
+>    motion, then `stop()`. Have an e-stop / power cut ready.
 
 ---
 
@@ -94,7 +129,7 @@ count (`+` = CCW). `speed` for position moves is the max rpm magnitude.
 | `get_voltage()` | `float` | Input voltage (V). |
 | `get_status()` | `StatusBits` | Status-1 bits (see [Data types](#data-types)). |
 | `enable()` | `None` | Allow motion: `UI_COM = 1` + arm `START/STOP`. Call before driving. |
-| `disable()` | `None` | Clear `UI_COM` (motion gated off). |
+| `disable()` | `None` | Release the run-latch (`START_STOP = 0`); cuts the velocity reference, so a continuously-driven motor stops. |
 | `reset_alarm()` | `None` | Clear a latched alarm. |
 
 ```python
@@ -128,10 +163,32 @@ if d.wait_in_position(timeout=8.0):
     print("arrived at", d.get_position())
 ```
 
+> **In a control loop, read state with one call.** `get_speed()`, `get_current()`
+> and `get_position()` are each a separate Modbus round-trip; `read_monitor()`
+> (single) / `read_main_data()` (dual) return speed + current + position in **one**
+> round-trip. Prefer the batched read per cycle.
+
+`wait_in_position()` **blocks** and holds the (single) serial port for up to its
+timeout — nothing else, including a `stop()`, can use the port meanwhile. In a loop or
+an agent, poll non-blocking instead:
+```python
+d.move_to(-120, speed=50)
+while not d.get_in_position():
+    ...           # do other work, watch for an abort; the port is free between polls
+    time.sleep(0.1)
+```
+
 ## `DualMotorDriver`
 
 `channel` is `1` or `2`. `set_velocities` writes each motor on its own register
 (motor 2 will not move from a single combined register on tested hardware).
+
+> **Bare `brake()` / `torque_off()` act on ONE channel, but `stop()` acts on BOTH.**
+> On a dual driver `brake(channel)`, `torque_off(channel)` and `set_velocity(channel,
+> rpm)` take a channel argument and affect only that motor — `d.brake(1)` brakes
+> motor 1 while **motor 2 keeps running**. To act on both, use `stop()`,
+> `brake_both()` or `torque_off_both()`. (`d.brake()` with no argument raises
+> `TypeError`.)
 
 | Method | Returns | Description |
 |---|---|---|
@@ -191,7 +248,7 @@ d.set_slow_down(1.5)
 | `raw` | `int` | Raw status-1 byte. |
 | `alarm` | `bool` | Any alarm latched. |
 | `over_voltage`, `over_temperature`, `overload`, `stall`, `ctrl_fail`, `hall_or_encoder_fail`, `inverse_velocity` | `bool` | Individual fault bits. |
-| `active` (property) | `list[str]` | Names of the set bits. |
+| `active` (property) | `list[str]` | Names of the set bits, from `STATUS1_BIT_NAMES`: `ALARM`, `CTRL_FAIL`, `OVER_VOLT`, `OVER_TEMP`, `OVER_LOAD`, `HALL_OR_ENC_FAIL`, `INV_VEL`, `STALL`. For branching, the boolean fields above (`.stall`, `.over_voltage`, …) are more robust than string matching. |
 
 `Monitor` (from single `read_monitor()`); `DualMonitor` has `.motor1` / `.motor2`
 each a `Monitor`:
@@ -206,7 +263,9 @@ each a `Monitor`:
 ## Low-level register access (`driver.client`)
 
 Anything the high-level API doesn't cover is reachable through the Modbus client.
-PIDs/commands are in `mdrobot.registers`.
+PIDs/commands are named constants in `mdrobot.registers` — a full table of register
+numbers, command codes and status bits is in the **[Register reference](registers.md)**.
+Here **PID** means *parameter ID* (a register address), **not** a control gain.
 
 | Method | Returns | Description |
 |---|---|---|
@@ -255,6 +314,10 @@ MdrobotError
     └── IncompleteResponseError   # short read (timeout / wiring / wrong baud)
 ```
 
+A missing or wrong **port** fails earlier and differently: `open()` raises pyserial's
+`SerialException` / `FileNotFoundError` (not an `MdrobotError`), so handle those around
+`open()` itself.
+
 ```python
 from mdrobot import SingleMotorDriver
 from mdrobot.exceptions import MdrobotError, IncompleteResponseError
@@ -269,14 +332,47 @@ except MdrobotError as e:
     print("driver error:", type(e).__name__, e)
 ```
 
-A timeout surfaces as `IncompleteResponseError`. On any failure the safe response
-is `stop()` + `torque_off()` (the `with` block still closes the port).
+A timeout surfaces as `IncompleteResponseError`. The **same** exception covers a
+transient bus hiccup (a retry may help) and a fatal mis-setup (wrong baud/ID or a dead
+link, where retrying loops forever) — decide retry-vs-abort from context, not from the
+type alone.
+
+**Recovery needs a live link.** `stop()` / `torque_off()` are themselves register
+writes, so if the link is down they raise again — the safe response is to **cut power /
+e-stop**, not to call them. And closing the port does **not** stop a moving motor (see
+Safety). Wrap a drive so it always *tries* to stop, and catch `KeyboardInterrupt`
+(Ctrl-C is not an `MdrobotError`):
+
+```python
+import time
+from mdrobot import SingleMotorDriver
+from mdrobot.exceptions import MdrobotError
+
+d = SingleMotorDriver.open("/dev/ttyUSB0")
+try:
+    d.enable(); d.set_velocity(40); time.sleep(2.0)
+except (MdrobotError, KeyboardInterrupt):
+    pass
+finally:
+    try:
+        d.stop(); d.torque_off()
+    except MdrobotError:
+        pass            # link is down — cut power / e-stop instead
+    d.close()
+```
 
 ## Safety
 
 - Start at **low speed**, unloaded, with an emergency stop / power cut in reach.
-- Position moves stop on arrival, but a wrong large target over-rotates — test
-  with small values first.
+- **No watchdog in the pure library.** Unlike the ROS node (`command_timeout`), the
+  Python/C++ library does not auto-stop. The controller holds the **last commanded
+  speed** indefinitely, and **closing the serial port does not stop a moving motor** —
+  always stop explicitly (the `try/finally` above) and keep a power cut reachable.
+- **Stopping under load:** `torque_off()` frees the shaft (it coasts / back-drives, so
+  a gravity or spring load drops). To hold a load use `brake()` (short-brake); use
+  `torque_off()` only when free-spin is safe.
+- Position moves stop on arrival, but a wrong large target over-rotates — test with
+  small values first.
 
 ## Troubleshooting — motor won't move
 

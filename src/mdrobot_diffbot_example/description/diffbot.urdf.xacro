@@ -11,6 +11,10 @@
   <xacro:arg name="motor_id" default="1"/>
   <!-- PNT50 measured: 12 counts/rev (hall, 3 x 4-pole). Measure for your motor. -->
   <xacro:arg name="counts_per_rev" default="12.0"/>
+  <!-- Per-wheel direction (mirrored mount). Default false; drive, observe, then set
+       true on whichever side spins backwards. -->
+  <xacro:arg name="reverse_left" default="false"/>
+  <xacro:arg name="reverse_right" default="false"/>
 
   <!-- geometry (must match diff_drive_controller wheel_radius / wheel_separation) -->
   <xacro:property name="wheel_radius" value="0.05"/>
@@ -110,5 +114,7 @@
       port="$(arg port)"
       baudrate="$(arg baudrate)"
       motor_id="$(arg motor_id)"
-      counts_per_rev="$(arg counts_per_rev)"/>
+      counts_per_rev="$(arg counts_per_rev)"
+      reverse_left="$(arg reverse_left)"
+      reverse_right="$(arg reverse_right)"/>
 </robot>

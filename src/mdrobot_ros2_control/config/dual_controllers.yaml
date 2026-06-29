@@ -16,7 +16,7 @@ mdrobot_hardware:
     motor_id: 1           # one controller, two channels -> a single slave id
     use_limit_sw: -1      # -1 leave as-is / 0 disable / 1 enable (some need 0 for serial)
     auto_enable: true
-    counts_per_rev: 12.0  # PNT50 measured: 12 (hall = 3 x 4-pole). 0 = raw. Per motor.
+    counts_per_rev: 12.0  # PNT50 measured = 12 (hall 3 x 4-pole). ⚠ per motor — MEASURE if not a PNT50. 0 = raw.
 
 controller_manager:
   ros__parameters:

@@ -30,6 +30,8 @@ and close the port on destruction (RAII) — the easiest entry point:
 
 ```cpp
 #include "mdrobot_cpp/device.hpp"
+#include <thread>            // std::this_thread::sleep_for
+#include <chrono>           // std::chrono::seconds (for the dwell below)
 
 // single-channel — read-only first (no motion): confirm comms
 auto s = mdrobot::SingleMotorConnection::open("/dev/ttyUSB0");  // baud 19200, id 1
@@ -38,16 +40,18 @@ std::cout << s->get_version() << " " << s->get_voltage() << " V\n";
 // drive (the motor turns)
 s->enable();                 // REQUIRED before motion
 s->set_velocity(40);         // signed rpm; + = CCW
+std::this_thread::sleep_for(std::chrono::seconds(2));  // hold so it actually turns
 auto m = s->read_monitor();  // m.speed_rpm, m.position, m.current_a
 s->stop();
-s->torque_off();             // port closes when `s` goes out of scope
+s->torque_off();             // NOTE: destruction closes the port but does NOT stop a moving motor
 
 // dual-channel
 auto d = mdrobot::DualMotorConnection::open("/dev/ttyUSB0");
 d->enable();
 d->set_velocities(40, 40);
+std::this_thread::sleep_for(std::chrono::seconds(2));  // hold so they actually turn
 d->stop();
-d->torque_off_both();
+d->torque_off_both();        // NOTE: destruction does NOT stop a moving motor
 ```
 
 `->` forwards to the driver; `s.driver()` / `s.client()` give direct references.
@@ -95,7 +99,7 @@ mdrobot::SingleMotorDriver drv(client);   // drv references client; keep both al
 | `get_voltage()` | `double` | Input voltage (V). |
 | `get_status()` | `StatusBits` | Status-1 bits. |
 | `enable()` | `void` | Allow motion: `UI_COM = 1` + arm `START/STOP`. |
-| `disable()` | `void` | Gate motion off. |
+| `disable()` | `void` | Release the run-latch (`START_STOP = 0`); a continuously-driven motor stops. |
 | `reset_alarm()` | `void` | Clear a latched alarm. |
 | `clear_slow_start/down()`, `clear_position_slow_start/down()` | `void` | Erase ramp settings. |
 
@@ -119,6 +123,10 @@ mdrobot::SingleMotorDriver drv(client);   // drv references client; keep both al
 ## `DualMotorDriver`
 
 `channel` is `1` or `2`. `set_velocities` writes each motor on its own register.
+
+> **Bare `brake(int)` / `torque_off(int)` act on one channel; `stop()` acts on both.**
+> `d->brake(1)` brakes motor 1 while **motor 2 keeps running**. Use `stop()`,
+> `brake_both()` or `torque_off_both()` for both.
 
 | Method | Returns | Description |
 |---|---|---|
@@ -160,7 +168,10 @@ d->torque_off_both();
 | `command(uint16_t cmd)` | `void` | Issue a command code. |
 
 PIDs/commands are constants in `mdrobot_cpp/registers.hpp`, e.g.
-`client.write_register(mdrobot::PID_USE_LIMIT_SW, 0);`.
+`client.write_register(mdrobot::PID_USE_LIMIT_SW, 0);`. A full table of register
+numbers, command codes and status bits is in the
+**[Register reference](registers.md)**. Here **PID** means *parameter ID* (a register
+address), not a control gain.
 
 ## Data types
 
@@ -211,11 +222,27 @@ try {
 }
 ```
 
+The serial layer also throws on a missing/wrong **port** at `open()` (caught by the
+`std::exception` arm above) — re-check the port path if `open()` fails. One
+`IncompleteResponseError` covers both a transient hiccup (retry may help) and a fatal
+mis-setup (wrong baud/ID, dead link); choose retry-vs-abort from context. `stop()` /
+`torque_off()` are register writes, so on a dead link they throw again — the real
+fallback is to **cut power / e-stop**.
+
 ## Safety
 
 - Start at **low speed**, unloaded, with an emergency stop / power cut in reach.
+- **No watchdog in the library.** It does not auto-stop; the controller holds the last
+  commanded speed, and destroying the connection (closing the port) does **not** stop a
+  moving motor. Always `stop()` explicitly and keep a power cut reachable.
+- **Stopping under load:** `torque_off()` frees the shaft (coasts / back-drives — a
+  gravity/spring load drops). Use `brake()` to hold a load; `torque_off()` only when
+  free-spin is safe.
 - This is a generic driver — soft limits, odometry and kinematics belong in the
   layer above it.
 - **Firmware & DIP:** recent firmware ships in encoder mode — driving without an
   encoder needs `ENC_PPR (156) = 0`. See
   [README → Hardware setup](README.md#hardware-setup).
+- **First drive, in order:** read-only comms check → (no encoder) `ENC_PPR (156) = 0`
+  → (serial-only) `USE_LIMIT_SW (17) = 0` → `enable()` → low rpm + a dwell + a stop in
+  reach. See the [Python manual checklist](python.md#quick-start).

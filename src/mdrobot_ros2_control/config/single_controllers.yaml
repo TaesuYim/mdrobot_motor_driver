@@ -22,7 +22,7 @@ mdrobot_hardware:
     motor_id: 1
     use_limit_sw: -1     # -1 leave as-is / 0 disable / 1 enable (some need 0 for serial)
     auto_enable: true
-    counts_per_rev: 24.0  # MD400 hall = 3 x 8-pole; 0 = raw (rpm/count). Measure per motor.
+    counts_per_rev: 24.0  # ⚠ ESTIMATE — 8-pole MD400 hall (3 x 8). MEASURE yours (10-pole = 30). 0 = raw (rpm/count).
 
 controller_manager:
   ros__parameters:

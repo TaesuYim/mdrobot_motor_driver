@@ -4,6 +4,12 @@ A generic ROS 2 node wrapping the `mdrobot` library. It supports single- and
 dual-channel controllers via the `device_type` parameter and exposes per-motor
 velocity/position commands and motor state. No robot kinematics.
 
+> The node is an intentional, simplified subset of the library: stop / brake /
+> torque_off act on the **whole device** (no per-channel service), position moves use a
+> single `position_max_rpm`, and a wrong-length command is dropped with a warning. For
+> per-channel control or variable position speed, use the [Python](python.md) /
+> [C++](cpp.md) library directly.
+
 ## Build
 
 This repository is a colcon workspace (packages under `src/`).
@@ -51,7 +57,7 @@ ros2 run mdrobot_ros2_driver motor_driver_node --ros-args --params-file config/s
 | `motor_id` | `1` | Modbus slave ID |
 | `device_type` | `single` | `single` or `dual` |
 | `command_timeout` | `0.5` | seconds; auto-stop if no new velocity command arrives |
-| `publish_rate` | `20.0` | Hz; `joint_states` publish rate |
+| `publish_rate` | `20.0` | Hz; `joint_states` publish rate. A dual cycle is ~50 ms on a 19200 bus, so keep dual at **≤ 15 Hz** (single can go higher); higher rates overrun the serial link. |
 | `diag_rate` | `2.0` | Hz; diagnostics publish rate |
 | `position_max_rpm` | `100` | speed cap for position moves |
 | `joint_names` | `[]` | names for `joint_states` (auto-generated if empty) |
@@ -93,18 +99,23 @@ ros2 run mdrobot_ros2_driver motor_driver_node --ros-args \
   -p device_type:=dual -p counts_per_rev:='[24.0, 24.0]'
 ```
 
-`counts_per_rev` is counts per **one revolution of the motor shaft** — the
-controller reports both position (count) and speed (rpm) at the motor. The value
-differs per motor (hall ≈ 3 × pole count; encoder = 4 × PPR), so **measure it**:
-turn the motor shaft a known N turns and compute Δcount / N
-(see [`examples/calibrate_counts_per_rev.py`](../../examples/calibrate_counts_per_rev.py)).
+> **Command topics are always raw.** Setting `counts_per_rev` makes `~/joint_states`
+> SI, but `~/cmd_velocity` and `~/cmd_position` stay **raw** (rpm / count) regardless.
+> The node applies no velocity cap, so never send rad/s to `~/cmd_velocity`.
+> *(The C++ `ros2_control` plugin is different: there a positive `counts_per_rev`
+> makes the **command** SI too — see [ros2_control.md](ros2_control.md#units). Node
+> command = raw; ros2_control command = SI when `counts_per_rev > 0`.)*
 
-Gear ratio is **not** applied here: `counts_per_rev` scales the position state only,
-while velocity is `rpm → rad/s` regardless. Measuring at a geared output shaft would
-make position the wheel angle but leave velocity at the motor rate, so the two would
-disagree by the gear ratio. Keep `counts_per_rev` at the motor and account for the
-gearbox in the robot layer above (e.g. set `diff_drive_controller`'s `wheel_radius`
-to the effective radius = wheel radius ÷ gear ratio).
+`counts_per_rev` is **per channel**: length 1 for single, length 2 (`[L, R]`) for dual
+— the same length rule as `cmd_velocity`. A wrong length, or any non-positive entry,
+falls back to raw with a warning. Starting points (but **measure** — it is per motor):
+hall ≈ 3 × pole count (8-pole ≈ 24, 10-pole ≈ 30, 4-pole ≈ 12), encoder = 4 × PPR;
+measure with [`examples/calibrate_counts_per_rev.py`](../../examples/calibrate_counts_per_rev.py).
+
+It is counts per **one revolution of the motor shaft** and scales the position state
+only (velocity is `rpm → rad/s` regardless); keep it at the motor and handle any
+gearbox in the robot layer above. Full explanation:
+[Python manual → Unit conversion](python.md#unit-conversion-mdrobotunits).
 
 ## Shutting down the node
 
@@ -124,18 +135,21 @@ torque-off and then exits. Notes:
 
 ## Troubleshooting — motor won't move
 
-1. Is the node enabled? (`auto_enable` true, or call `~/enable`.) `enable()` sets
+1. Does the node's `port` match the device? It can become `ttyUSB1` after a re-plug or
+   reboot — check `ls /dev/ttyUSB*` (or use a `/dev/serial/by-id/...` path). A missing
+   port fails at startup with a serial-open error.
+2. Is the node enabled? (`auto_enable` true, or call `~/enable`.) `enable()` sets
    `UI_COM=1` and arms `START/STOP`.
-2. **Single-channel**: some controllers need `USE_LIMIT_SW=0` for serial drive —
+3. **Single-channel**: some controllers need `USE_LIMIT_SW=0` for serial drive —
    set `use_limit_sw: 0` in the config file.
-3. **Recent firmware, no encoder**: motor turns briefly then stops with an alarm
+4. **Recent firmware, no encoder**: motor turns briefly then stops with an alarm
    (~0.6 s) → **encoder mode**. Write `ENC_PPR (156) = 0` once with the Python/C++
    library (the node has no parameter — it's a one-time controller setting). See
    [README → Hardware setup](README.md#hardware-setup).
-4. **Dual-channel, motor 2 not turning**: handled by the driver (motor 2 uses its
+5. **Dual-channel, motor 2 not turning**: handled by the driver (motor 2 uses its
    own command register).
-5. Some dual-channel controllers turn **~1 s after** the command.
-6. Alarm bit set? Call `~/reset_alarm`.
-7. Unstable readbacks may indicate a serial session desync (some adapters); the
+6. Some dual-channel controllers turn **~1 s after** the command.
+7. Alarm bit set? Call `~/reset_alarm`.
+8. Unstable readbacks may indicate a serial session desync (some adapters); the
    node cross-checks the version register on connect.
 

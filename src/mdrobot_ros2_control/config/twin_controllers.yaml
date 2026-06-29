@@ -23,6 +23,7 @@ mdrobot_hardware:
     reverse_L: false
     reverse_R: false
     # Per-wheel counts/rev (hall = 3 x pole count; MD400 8-pole ~ 24). 0 = raw.
+    # ⚠ ESTIMATE (8-pole hall = 3 x 8 = 24). MEASURE each motor; left/right may differ. 0 = raw.
     counts_per_rev_L: 24.0
     counts_per_rev_R: 24.0
     use_limit_sw: -1      # -1 leave as-is / 0 disable / 1 enable (some need 0 for serial)

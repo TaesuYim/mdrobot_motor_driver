@@ -13,7 +13,7 @@
     baudrate: 19200
     motor_id: 1
     command_timeout: 0.5      # s; auto-stop if no new cmd_velocity (0 disables)
-    publish_rate: 20.0        # Hz; joint_states
+    publish_rate: 15.0        # Hz; joint_states. Dual serial cycle ~50 ms → keep ≤15 Hz (higher overruns).
     diag_rate: 2.0            # Hz; diagnostics
     position_max_rpm: 100     # speed cap for cmd_position
     auto_enable: true         # call enable() on startup

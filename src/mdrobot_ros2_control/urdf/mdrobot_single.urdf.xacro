@@ -9,6 +9,7 @@
   <xacro:arg name="use_limit_sw" default="-1"/>
   <xacro:arg name="auto_enable" default="true"/>
   <!-- Hall feedback on MD400 ~ 24 counts/rev (3 x pole, 8-pole). Measure per motor. -->
+  <!-- ⚠ ESTIMATE: 8-pole MD400 hall = 3 x 8 = 24. MEASURE your motor (10-pole = 30). 0 = raw. -->
   <xacro:arg name="counts_per_rev" default="24.0"/>
 
   <link name="base_link"/>

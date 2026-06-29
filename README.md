@@ -69,17 +69,26 @@ with SingleMotorDriver.open("/dev/ttyUSB0") as d:
     print(d.get_version(), d.get_voltage(), "V", d.get_status().active)
 
 # single-channel drive (motor turns)
+import time
 with SingleMotorDriver.open("/dev/ttyUSB0") as d:
     d.enable()             # required before motion (UI_COM=1 + START/STOP arm)
-    d.set_velocity(40)     # signed rpm; + = CCW
-    d.stop(); d.torque_off()
+    try:
+        d.set_velocity(40) # signed rpm; + = CCW
+        time.sleep(2.0)    # hold so it actually turns; no dwell = a twitch
+    finally:
+        d.stop(); d.torque_off()
 
 # dual-channel
 with DualMotorDriver.open("/dev/ttyUSB0") as d:
     d.enable()
-    d.set_velocities(40, 40)
-    d.stop(); d.torque_off_both()
+    try:
+        d.set_velocities(40, 40)
+        time.sleep(2.0)    # some controllers start ~1 s late — hold, don't send 0 early
+    finally:
+        d.stop(); d.torque_off_both()
 ```
+
+> First time? Recent firmware ships in encoder mode — see the [first-drive checklist](docs/manual/python.md#quick-start).
 
 Low-level register/command access is always available via `d.client` for anything the high-level API doesn't cover.
 
@@ -142,9 +151,11 @@ the doc convention `DL/10 . DL%10`):
 | MD400T | dual | DL=72 / v7.2 | identify, read, velocity (both motors), position (simultaneous), ROS 2 node |
 
 > **Twin mode** (two single-channel controllers on one bus) is **code-complete and
-> unit-tested**, and the `PID_ID` slave-id change is confirmed on MD400 v8.6, but two
-> controllers driving a base together have **not** yet been hardware-verified — treat
-> it as experimental.
+> unit-tested**, and the `PID_ID` slave-id change is confirmed on MD400 v8.6 (re-ID one
+> unit first by writing `PID_ID (133)` with the wire word `(new_id << 8) | 0xAA`, e.g.
+> id 2 → `0x02AA`), but two controllers driving a base together have **not** yet been
+> hardware-verified — treat it as experimental. Full steps:
+> [ros2_control → Twin mode](docs/manual/ros2_control.md#twin-mode--two-single-channel-controllers-on-one-bus).
 
 ## License
 

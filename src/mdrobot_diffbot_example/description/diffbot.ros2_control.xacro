@@ -7,7 +7,7 @@
      (the plugin maps by order, not by name). Names are free. -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
   <xacro:macro name="diffbot_ros2_control"
-               params="name use_mock_hardware port baudrate motor_id counts_per_rev">
+               params="name use_mock_hardware port baudrate motor_id counts_per_rev reverse_left:=false reverse_right:=false">
     <ros2_control name="${name}" type="system">
       <hardware>
         <xacro:if value="${use_mock_hardware}">
@@ -33,6 +33,7 @@
         <state_interface name="position"/>
         <state_interface name="velocity"/>
         <param name="counts_per_rev">${counts_per_rev}</param>
+        <param name="reverse">${reverse_left}</param>
       </joint>
       <!-- second joint -> motor2 (right) -->
       <joint name="right_wheel_joint">
@@ -40,6 +41,7 @@
         <state_interface name="position"/>
         <state_interface name="velocity"/>
         <param name="counts_per_rev">${counts_per_rev}</param>
+        <param name="reverse">${reverse_right}</param>
       </joint>
     </ros2_control>
   </xacro:macro>

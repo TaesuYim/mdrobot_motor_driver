@@ -9,6 +9,11 @@
   <xacro:arg name="motor_id" default="1"/>
   <xacro:arg name="use_limit_sw" default="-1"/>
   <xacro:arg name="auto_enable" default="true"/>
+  <!-- Per-wheel direction. A diff base mounts the two motors mirrored, so one side
+       usually needs reverse=true for +cmd_vel.x to drive forward. Applied to commands
+       AND feedback so odometry stays consistent. Default false: drive, observe, then set. -->
+  <xacro:arg name="reverse_L" default="false"/>
+  <xacro:arg name="reverse_R" default="false"/>
   <!-- PNT50 measured 2026-06-22: 12 counts/rev both motors (hall, =3 x 4-pole). -->
   <xacro:arg name="counts_per_rev" default="12.0"/>
 
@@ -45,6 +50,7 @@
       <state_interface name="velocity"/>
       <state_interface name="effort"/>
       <param name="counts_per_rev">$(arg counts_per_rev)</param>
+      <param name="reverse">$(arg reverse_L)</param>
     </joint>
     <joint name="motor_R">
       <command_interface name="velocity"/>
@@ -52,6 +58,7 @@
       <state_interface name="velocity"/>
       <state_interface name="effort"/>
       <param name="counts_per_rev">$(arg counts_per_rev)</param>
+      <param name="reverse">$(arg reverse_R)</param>
     </joint>
   </ros2_control>
 </robot>
