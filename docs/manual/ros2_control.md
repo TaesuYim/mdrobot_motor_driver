@@ -179,6 +179,16 @@ velocity writes) — one more than dual — so `twin_controllers.yaml` sets
 `update_rate: 10`. Raise it only if a bench measurement of `read()+write()`
 confirms < 80 ms.
 
+**Left/right speed mismatch.** Two physically separate controllers/motors are not
+perfectly matched, so one wheel may turn slightly slower than the other for the
+same command (most visible at low speed — friction/cogging), making the base veer
+when commanded straight. Do **not** fix this by switching to velocity feedback:
+velocity feedback reports the commanded speed and hides the drift, whereas the
+default position feedback reflects the true (if hall-quantized) motion. Correct it
+on the controller layer instead — `diff_drive_controller` exposes
+`left_wheel_radius_multiplier` / `right_wheel_radius_multiplier` for per-wheel
+calibration — or operate above the low-speed band. Re-check under load after mounting.
+
 #### Minimal URDF (twin)
 
 The shipped `mdrobot_twin.urdf.xacro` already has this shape and fills the values

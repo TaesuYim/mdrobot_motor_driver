@@ -26,6 +26,7 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.substitutions import Command, FindExecutable, LaunchConfiguration
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
 
@@ -65,7 +66,12 @@ def launch_setup(context, *args, **kwargs):
     for key, value in hw.items():
         sval = str(value).lower() if isinstance(value, bool) else str(value)
         xacro_cmd += [f" {key}:=", sval]
-    robot_description = {"robot_description": Command(xacro_cmd)}
+    # Wrap in ParameterValue(value_type=str): launch_ros otherwise YAML-auto-detects
+    # the parameter type, and the URDF XML is not a valid YAML scalar, so the launch
+    # aborts (seen on the twin urdf). Forcing str keeps the description verbatim.
+    robot_description = {
+        "robot_description": ParameterValue(Command(xacro_cmd), value_type=str)
+    }
 
     control_node = Node(
         package="controller_manager",

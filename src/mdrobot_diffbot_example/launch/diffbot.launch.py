@@ -22,6 +22,7 @@ from launch.substitutions import (
     PathJoinSubstitution,
 )
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
 
@@ -41,15 +42,21 @@ def launch_setup(context, *args, **kwargs):
     controllers = PathJoinSubstitution([pkg, "config", "diffbot_controllers.yaml"])
     rviz_cfg = PathJoinSubstitution([pkg, "rviz", "diffbot.rviz"])
 
+    # ParameterValue(value_type=str) forces the description to a string; without it
+    # launch_ros YAML-auto-detects the type and aborts if the URDF XML is not a valid
+    # YAML scalar (see bringup.launch.py).
     robot_description = {
-        "robot_description": Command([
-            FindExecutable(name="xacro"), " ", xacro_file,
-            " use_mock_hardware:=", use_mock,
-            " port:=", port,
-            " counts_per_rev:=", cpr,
-            " reverse_left:=", rev_l,
-            " reverse_right:=", rev_r,
-        ])
+        "robot_description": ParameterValue(
+            Command([
+                FindExecutable(name="xacro"), " ", xacro_file,
+                " use_mock_hardware:=", use_mock,
+                " port:=", port,
+                " counts_per_rev:=", cpr,
+                " reverse_left:=", rev_l,
+                " reverse_right:=", rev_r,
+            ]),
+            value_type=str,
+        )
     }
 
     control_node = Node(

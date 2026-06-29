@@ -31,8 +31,8 @@
   <!-- USE_LIMIT_SW: -1 leave as-is, 0 disable (often needed for serial drive), 1 enable. -->
   <xacro:arg name="use_limit_sw" default="-1"/>
   <xacro:arg name="auto_enable" default="true"/>
-  <!-- Per-wheel counts/rev (hall = 3 x pole count; MD400 8-pole ~ 24). Measure
-       each motor; left/right may differ if the motors are not matched. -->
+  <!-- Per-wheel counts/rev (hall = 3 x motor pole count). Measured: 8-pole = 24,
+       10-pole = 30. Measure each motor; left/right may differ if not matched. -->
   <xacro:arg name="counts_per_rev_L" default="24.0"/>
   <xacro:arg name="counts_per_rev_R" default="24.0"/>
 

@@ -22,8 +22,10 @@ mdrobot_hardware:
     # Skid-steer mounts the motors mirrored; set the side that spins backwards true.
     reverse_L: false
     reverse_R: false
-    # Per-wheel counts/rev (hall = 3 x pole count; MD400 8-pole ~ 24). 0 = raw.
-    # ⚠ ESTIMATE (8-pole hall = 3 x 8 = 24). MEASURE each motor; left/right may differ. 0 = raw.
+    # Per-wheel counts/rev (hall = 3 x MOTOR pole count — a property of the motor,
+    # not the controller). Measured values: 8-pole = 24, 10-pole = 30.
+    # ⚠ ESTIMATE below — MEASURE each motor (examples/calibrate_counts_per_rev.py);
+    # left/right may differ if the motors are not matched. 0 = raw counts.
     counts_per_rev_L: 24.0
     counts_per_rev_R: 24.0
     use_limit_sw: -1      # -1 leave as-is / 0 disable / 1 enable (some need 0 for serial)
