@@ -1,9 +1,33 @@
-# controller_manager config for a TWIN base: two single-channel MDROBOT
-# controllers (e.g. two MD400) on one serial bus at distinct slave IDs, laid out
-# as a 2-wheel differential base.
+# Config for a TWIN base: two single-channel MDROBOT controllers (e.g. two MD400)
+# on one serial bus at distinct slave IDs, laid out as a 2-wheel differential base.
 #
-# diff_cont drives motor1 (left) / motor2 (right) from /diff_cont/cmd_vel.
+# Two sections:
+#   mdrobot_hardware  - serial connection + PER-WHEEL controller settings.
+#                       bringup.launch.py reads this and injects it into the URDF;
+#                       controller_manager ignores it. Set EACH motor's Modbus id
+#                       (motor_id_L / motor_id_R — MUST differ), direction and
+#                       counts/rev HERE. The two controllers must already have
+#                       distinct slave ids (re-ID one with PID_ID(133) first).
+#   controller_manager / diff_cont - the controllers themselves.
+#
+# diff_cont drives motor_L (left) / motor_R (right) from /diff_cont/cmd_vel.
 # wheel_separation / wheel_radius are placeholders — set them for your robot.
+mdrobot_hardware:
+  ros__parameters:
+    port: /dev/ttyUSB0
+    baudrate: 19200
+    # Per-wheel Modbus slave ids — MUST be distinct (on_init rejects equal ids).
+    motor_id_L: 1
+    motor_id_R: 2
+    # Skid-steer mounts the motors mirrored; set the side that spins backwards true.
+    reverse_L: false
+    reverse_R: false
+    # Per-wheel counts/rev (hall = 3 x pole count; MD400 8-pole ~ 24). 0 = raw.
+    counts_per_rev_L: 24.0
+    counts_per_rev_R: 24.0
+    use_limit_sw: -1      # -1 leave as-is / 0 disable / 1 enable (some need 0 for serial)
+    auto_enable: true
+
 controller_manager:
   ros__parameters:
     # 10 Hz: a twin read()+write() cycle is ~4 serial round-trips at 19200 baud
@@ -21,8 +45,8 @@ controller_manager:
 
 diff_cont:
   ros__parameters:
-    left_wheel_names: ["motor1"]
-    right_wheel_names: ["motor2"]
+    left_wheel_names: ["motor_L"]
+    right_wheel_names: ["motor_R"]
     wheel_separation: 0.30
     wheel_radius: 0.05
     # State feedback is in SI when counts_per_rev is set in the URDF.

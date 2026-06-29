@@ -1,4 +1,13 @@
-# controller_manager config for a single-channel MDROBOT controller (MD400).
+# Config for a single-channel MDROBOT controller (MD400).
+#
+# Two sections:
+#   mdrobot_hardware  - serial connection + controller settings. bringup.launch.py
+#                       reads this and injects it into the URDF (the ros2_control
+#                       hardware params); controller_manager ignores it. Edit your
+#                       port / motor_id / counts_per_rev HERE instead of on the
+#                       command line. (port and counts_per_rev can still be
+#                       overridden with launch args.)
+#   controller_manager / velocity_cont - the controllers themselves.
 #
 # joint_state_broadcaster verifies the read() path; velocity_cont
 # (forward_command_controller) verifies the write() path by forwarding
@@ -6,6 +15,15 @@
 # velocity_cont needs ros2_controllers:  sudo apt install ros-jazzy-ros2-controllers
 #
 # Command units follow counts_per_rev: SI (rad/s) when set, else raw rpm.
+mdrobot_hardware:
+  ros__parameters:
+    port: /dev/ttyUSB0
+    baudrate: 19200
+    motor_id: 1
+    use_limit_sw: -1     # -1 leave as-is / 0 disable / 1 enable (some need 0 for serial)
+    auto_enable: true
+    counts_per_rev: 24.0  # MD400 hall = 3 x 8-pole; 0 = raw (rpm/count). Measure per motor.
+
 controller_manager:
   ros__parameters:
     update_rate: 20  # Hz — single read+write is ~2 serial round-trips.

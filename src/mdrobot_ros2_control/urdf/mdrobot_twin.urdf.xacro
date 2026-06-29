@@ -5,44 +5,49 @@
 
      This is NOT device_type=dual. dual = one controller with two channels; twin =
      two separate single-channel controllers, each with its own motor_id. Each
-     wheel can therefore use velocity or position independently.
+     wheel (motor_L = left, motor_R = right) can use velocity or position independently.
 
      PREREQUISITE (hardware, out of code): the two controllers must have DISTINCT
      Modbus slave IDs. Factory default is 1, so re-ID one unit to 2 first (write
-     PID_ID(133); do it with only ONE unit on the bus). on_init rejects equal ids. -->
+     PID_ID(133); do it with only ONE unit on the bus). on_init rejects equal ids.
+
+     Connection settings (port, per-wheel motor_id/reverse/counts_per_rev) are
+     normally set in config/twin_controllers.yaml (the `mdrobot_hardware` section,
+     which bringup.launch.py reads and injects here). The args below are the
+     fallback defaults / override points. -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="mdrobot_twin">
 
   <xacro:arg name="port" default="/dev/ttyUSB0"/>
   <xacro:arg name="baudrate" default="19200"/>
   <!-- Per-wheel Modbus slave IDs — MUST be distinct (see prerequisite above). -->
-  <xacro:arg name="motor_id_1" default="1"/>
-  <xacro:arg name="motor_id_2" default="2"/>
+  <xacro:arg name="motor_id_L" default="1"/>
+  <xacro:arg name="motor_id_R" default="2"/>
   <!-- Per-wheel direction. A skid-steer mounts the two motors mirrored, so one
        side usually needs reverse=true for +cmd_vel.x to drive the base forward.
        Default false on both (no unverified assumption baked in): drive the base,
        observe, then set reverse=true on whichever side spins the wrong way. -->
-  <xacro:arg name="reverse_1" default="false"/>
-  <xacro:arg name="reverse_2" default="false"/>
+  <xacro:arg name="reverse_L" default="false"/>
+  <xacro:arg name="reverse_R" default="false"/>
   <!-- USE_LIMIT_SW: -1 leave as-is, 0 disable (often needed for serial drive), 1 enable. -->
   <xacro:arg name="use_limit_sw" default="-1"/>
   <xacro:arg name="auto_enable" default="true"/>
   <!-- Per-wheel counts/rev (hall = 3 x pole count; MD400 8-pole ~ 24). Measure
        each motor; left/right may differ if the motors are not matched. -->
-  <xacro:arg name="counts_per_rev_1" default="24.0"/>
-  <xacro:arg name="counts_per_rev_2" default="24.0"/>
+  <xacro:arg name="counts_per_rev_L" default="24.0"/>
+  <xacro:arg name="counts_per_rev_R" default="24.0"/>
 
   <link name="base_link"/>
-  <link name="motor1_link"/>
-  <link name="motor2_link"/>
-  <joint name="motor1" type="continuous">
+  <link name="motor_L_link"/>
+  <link name="motor_R_link"/>
+  <joint name="motor_L" type="continuous">
     <parent link="base_link"/>
-    <child link="motor1_link"/>
+    <child link="motor_L_link"/>
     <origin xyz="0 0.15 0"/>
     <axis xyz="0 0 1"/>
   </joint>
-  <joint name="motor2" type="continuous">
+  <joint name="motor_R" type="continuous">
     <parent link="base_link"/>
-    <child link="motor2_link"/>
+    <child link="motor_R_link"/>
     <origin xyz="0 -0.15 0"/>
     <axis xyz="0 0 1"/>
   </joint>
@@ -57,25 +62,25 @@
       <param name="auto_enable">$(arg auto_enable)</param>
       <param name="position_max_rpm">100</param>
     </hardware>
-    <!-- first joint -> controller motor_id_1 (left) -->
-    <joint name="motor1">
+    <!-- first joint -> left controller (motor_id_L) -->
+    <joint name="motor_L">
       <command_interface name="velocity"/>
       <state_interface name="position"/>
       <state_interface name="velocity"/>
       <state_interface name="effort"/>
-      <param name="motor_id">$(arg motor_id_1)</param>
-      <param name="reverse">$(arg reverse_1)</param>
-      <param name="counts_per_rev">$(arg counts_per_rev_1)</param>
+      <param name="motor_id">$(arg motor_id_L)</param>
+      <param name="reverse">$(arg reverse_L)</param>
+      <param name="counts_per_rev">$(arg counts_per_rev_L)</param>
     </joint>
-    <!-- second joint -> controller motor_id_2 (right) -->
-    <joint name="motor2">
+    <!-- second joint -> right controller (motor_id_R) -->
+    <joint name="motor_R">
       <command_interface name="velocity"/>
       <state_interface name="position"/>
       <state_interface name="velocity"/>
       <state_interface name="effort"/>
-      <param name="motor_id">$(arg motor_id_2)</param>
-      <param name="reverse">$(arg reverse_2)</param>
-      <param name="counts_per_rev">$(arg counts_per_rev_2)</param>
+      <param name="motor_id">$(arg motor_id_R)</param>
+      <param name="reverse">$(arg reverse_R)</param>
+      <param name="counts_per_rev">$(arg counts_per_rev_R)</param>
     </joint>
   </ros2_control>
 </robot>

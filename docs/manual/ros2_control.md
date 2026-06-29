@@ -6,7 +6,7 @@ Two C++ packages let you drive MDROBOT controllers from the
 | Package | Role |
 |---|---|
 | `mdrobot_cpp` | C++ communication library — a 1:1 port of the Python `mdrobot` library (POSIX `termios` transport, CRC, Modbus RTU protocol, registers, status decoding, unit conversion, `SingleMotorDriver` / `DualMotorDriver`). `ament_cmake`, no ROS dependency. |
-| `mdrobot_ros2_control` | A `hardware_interface::SystemInterface` plugin (`pluginlib`) that wraps `mdrobot_cpp`. One plugin handles both single- and dual-channel controllers. |
+| `mdrobot_ros2_control` | A `hardware_interface::SystemInterface` plugin (`pluginlib`) that wraps `mdrobot_cpp`. One plugin handles single- and dual-channel controllers, plus **twin** (two single-channel controllers on one bus). |
 
 Both are independent of the Python packages — build only these if C++ is all you need.
 
@@ -65,14 +65,21 @@ A joint with a **positive `counts_per_rev`** exports SI (`position` = rad,
 `3 × pole count` (e.g. 24 for 8-pole, 30 for 10-pole, 12 for 4-pole). Measure it;
 never assume.
 
-### Hardware parameters (`<hardware>`)
+### Hardware parameters
+
+These are the controller's `<hardware>` `<param>`s, but you normally **do not edit
+the URDF** — set them in `config/<device_type>_controllers.yaml` under the
+**`mdrobot_hardware`** section. `bringup.launch.py` reads that section and injects
+it into the URDF for you (`controller_manager` ignores the section). Writing them
+directly as URDF `<param>`s still works, e.g. if you embed this plugin in your own
+robot description.
 
 | param | default | meaning |
 |---|---|---|
 | `device_type` | (from joint count) | `single`, `dual`, or `twin`. Blank infers `single`/`dual` from the joint count; **`twin` must be set explicitly** (twin and dual both have 2 joints, so it cannot be inferred). |
-| `port` | `/dev/ttyUSB0` | serial port |
+| `port` | `/dev/ttyUSB0` | serial port (set in the yaml; or override with the `port:=` launch arg) |
 | `baudrate` | `19200` | |
-| `motor_id` | `1` | Modbus slave id. For **twin** this is set **per joint** (`<param>` on the joint, see below), not on `<hardware>`. |
+| `motor_id` | `1` | Modbus slave id. For **twin** each controller has its own (`motor_id_L` / `motor_id_R` in the yaml — see below), not one shared `motor_id`. |
 | `use_limit_sw` | `-1` | `-1` leave as-is, `0` disable, `1` enable (some controllers need `0` for serial drive) |
 | `auto_enable` | `true` | call `enable()` on activation |
 | `position_max_rpm` | `100` | speed cap for position commands |
@@ -148,13 +155,15 @@ with SingleMotorDriver.open("/dev/ttyUSB0") as d:   # only this unit on the bus
 `on_init` rejects equal ids. *(Confirmed on MD400 v8.6; older firmware / dual
 controllers are untested for this write.)*
 
-**Per-joint `<param>`s** (the first joint is the left wheel, the second the right):
+**Per-wheel settings.** The two joints are `motor_L` (left wheel, first joint) and
+`motor_R` (right wheel, second joint). Set each wheel in `twin_controllers.yaml`
+(`mdrobot_hardware` section) — `…_L` for the left controller, `…_R` for the right:
 
-| joint param | meaning |
+| yaml key | meaning |
 |---|---|
-| `motor_id` | this controller's Modbus slave id — **must differ** between the two joints |
-| `reverse` | `true`/`false`. A skid-steer mounts the two motors mirrored, so one side usually needs `reverse=true` for `+cmd_vel.x` to drive the base forward. Applied symmetrically to commands **and** feedback, so odometry stays consistent. Default `false` on both — drive the base, see which side spins backwards, then set it. |
-| `counts_per_rev` | per-wheel counts per rev (hall = `3 × pole count`). Left/right may differ if the motors are not matched; keep it **positive** (it is the SI gate — use `reverse` for direction, never a negative `counts_per_rev`). |
+| `motor_id_L` / `motor_id_R` | each controller's Modbus slave id — **must differ** (`on_init` rejects equal ids) |
+| `reverse_L` / `reverse_R` | `true`/`false`. A skid-steer mounts the two motors mirrored, so one side usually needs `reverse: true` for `+cmd_vel.x` to drive the base forward. Applied symmetrically to commands **and** feedback, so odometry stays consistent. Default `false` on both — drive the base, see which side spins backwards, then set it. |
+| `counts_per_rev_L` / `counts_per_rev_R` | per-wheel counts per rev (hall = `3 × pole count`). Left/right may differ if the motors are not matched; keep it **positive** (it is the SI gate — use `reverse` for direction, never a negative `counts_per_rev`). |
 
 **Partial-failure policy.** If one controller stops responding, the driver
 commands **zero speed to the other** wheel as well — a mobile base must not keep
@@ -170,6 +179,10 @@ confirms < 80 ms.
 
 #### Minimal URDF (twin)
 
+The shipped `mdrobot_twin.urdf.xacro` already has this shape and fills the values
+from `twin_controllers.yaml`; it is shown here only so you can see the joint layout
+(`motor_L` / `motor_R`, mapped to the controllers by order):
+
 ```xml
 <ros2_control name="mdrobot_twin" type="system">
   <hardware>
@@ -177,7 +190,7 @@ confirms < 80 ms.
     <param name="device_type">twin</param>
     <param name="port">/dev/ttyUSB0</param>
   </hardware>
-  <joint name="motor1">                 <!-- left wheel -->
+  <joint name="motor_L">                 <!-- left wheel -->
     <command_interface name="velocity"/>
     <state_interface name="position"/>
     <state_interface name="velocity"/>
@@ -186,12 +199,12 @@ confirms < 80 ms.
     <param name="reverse">false</param>
     <param name="counts_per_rev">24</param>
   </joint>
-  <joint name="motor2">                 <!-- right wheel -->
+  <joint name="motor_R">                 <!-- right wheel -->
     <command_interface name="velocity"/>
     <state_interface name="position"/>
     <state_interface name="velocity"/>
     <state_interface name="effort"/>
-    <param name="motor_id">2</param>     <!-- must differ from motor1 -->
+    <param name="motor_id">2</param>     <!-- must differ from motor_L -->
     <param name="reverse">true</param>   <!-- mirrored mount -->
     <param name="counts_per_rev">24</param>
   </joint>
@@ -201,36 +214,37 @@ confirms < 80 ms.
 ## Controllers & bringup
 
 `bringup.launch.py` starts `robot_state_publisher`, the `controller_manager`, and
-spawns the controllers from `config/<device_type>_controllers.yaml`:
+spawns the controllers from `config/<device_type>_controllers.yaml`. **Edit that
+file** for your robot — both the connection settings (`mdrobot_hardware` section)
+and the controller params live there:
 
 - **single** → `joint_state_broadcaster` + `velocity_cont`
   (`forward_command_controller`, commands `/velocity_cont/commands`).
-  Needs `ros-jazzy-ros2-controllers`.
+  Needs `ros-jazzy-ros2-controllers`. Joint: `motor1`.
 - **dual** → `joint_state_broadcaster` + `diff_cont` (`diff_drive_controller`,
-  `/diff_cont/cmd_vel`, `geometry_msgs/TwistStamped`).
+  `/diff_cont/cmd_vel`, `geometry_msgs/TwistStamped`). Wheels: `motor_L` / `motor_R`.
 - **twin** → `joint_state_broadcaster` + `diff_cont`, same as dual but at
-  `update_rate: 10` and with the per-wheel `motor_id_*` / `reverse_*` /
-  `counts_per_rev_*` launch args below.
+  `update_rate: 10`; set each wheel's `motor_id_L` / `motor_id_R`, `reverse_L` /
+  `reverse_R`, `counts_per_rev_L` / `counts_per_rev_R` in `twin_controllers.yaml`.
 
 ```bash
-ros2 launch mdrobot_ros2_control bringup.launch.py \
-    device_type:=dual port:=/dev/ttyUSB0 counts_per_rev:=12
+# set port / motor ids / counts_per_rev in config/<type>_controllers.yaml first
+ros2 launch mdrobot_ros2_control bringup.launch.py device_type:=single
+ros2 launch mdrobot_ros2_control bringup.launch.py device_type:=dual
+ros2 launch mdrobot_ros2_control bringup.launch.py device_type:=twin
+# (optional) override the port without editing the yaml:
+ros2 launch mdrobot_ros2_control bringup.launch.py device_type:=twin port:=/dev/ttyUSB1
+
 # drive (dual or twin): linear.x in m/s -> wheels
 ros2 topic pub /diff_cont/cmd_vel geometry_msgs/msg/TwistStamped \
     "{twist: {linear: {x: 0.1}}}"
-
-# twin: two single controllers at slave ids 1 and 2, right wheel mirrored
-ros2 launch mdrobot_ros2_control bringup.launch.py \
-    device_type:=twin port:=/dev/ttyUSB0 \
-    motor_id_1:=1 motor_id_2:=2 reverse_2:=true \
-    counts_per_rev_1:=24 counts_per_rev_2:=24
 ```
 
-The launch arg `counts_per_rev:=0` (default) **keeps the URDF's own value** (single
-`24`, dual `12` — both positive, i.e. SI); a positive value overrides it. This is
-*not* the same as the per-joint `<param name="counts_per_rev">0</param>`, which
-selects **raw** (count/rpm) units — to publish raw, set the URDF `<param>` to `0`
-rather than the launch arg.
+`counts_per_rev` selects units: **positive → SI** (`rad`, `rad/s`), **`0` → raw**
+(`count`, `rpm`). Set it per wheel in the yaml (`counts_per_rev` for single/dual,
+`counts_per_rev_L` / `counts_per_rev_R` for twin). For single/dual you can also
+override it on the command line with `counts_per_rev:=<value>` (empty, the default,
+keeps the yaml value).
 
 For a complete, runnable robot (proper URDF geometry, RViz, mock/real switch,
 odometry + TF) see the **[`mdrobot_diffbot_example`](../../src/mdrobot_diffbot_example/README.md)**

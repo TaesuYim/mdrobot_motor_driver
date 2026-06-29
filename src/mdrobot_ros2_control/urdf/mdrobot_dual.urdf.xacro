@@ -13,17 +13,17 @@
   <xacro:arg name="counts_per_rev" default="12.0"/>
 
   <link name="base_link"/>
-  <link name="motor1_link"/>
-  <link name="motor2_link"/>
-  <joint name="motor1" type="continuous">
+  <link name="motor_L_link"/>
+  <link name="motor_R_link"/>
+  <joint name="motor_L" type="continuous">
     <parent link="base_link"/>
-    <child link="motor1_link"/>
+    <child link="motor_L_link"/>
     <origin xyz="0 0.15 0"/>
     <axis xyz="0 0 1"/>
   </joint>
-  <joint name="motor2" type="continuous">
+  <joint name="motor_R" type="continuous">
     <parent link="base_link"/>
-    <child link="motor2_link"/>
+    <child link="motor_R_link"/>
     <origin xyz="0 -0.15 0"/>
     <axis xyz="0 0 1"/>
   </joint>
@@ -39,14 +39,14 @@
       <param name="auto_enable">$(arg auto_enable)</param>
       <param name="position_max_rpm">100</param>
     </hardware>
-    <joint name="motor1">
+    <joint name="motor_L">
       <command_interface name="velocity"/>
       <state_interface name="position"/>
       <state_interface name="velocity"/>
       <state_interface name="effort"/>
       <param name="counts_per_rev">$(arg counts_per_rev)</param>
     </joint>
-    <joint name="motor2">
+    <joint name="motor_R">
       <command_interface name="velocity"/>
       <state_interface name="position"/>
       <state_interface name="velocity"/>
