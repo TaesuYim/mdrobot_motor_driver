@@ -75,10 +75,17 @@ source install/setup.bash
 
 ## Install (Python library only, no ROS 2)
 
-```bash
-pip install -e 'src/mdrobot[serial]'    # [serial] pulls in pyserial
+From a clone of this repository (run at the repository root):
 
-# or straight from GitHub, without cloning:
+```bash
+git clone https://github.com/TaesuYim/mdrobot_motor_driver.git
+cd mdrobot_motor_driver
+pip install -e 'src/mdrobot[serial]'    # editable install; [serial] pulls in pyserial
+```
+
+Or install directly from GitHub, without cloning:
+
+```bash
 pip install 'mdrobot[serial] @ git+https://github.com/TaesuYim/mdrobot_motor_driver.git#subdirectory=src/mdrobot'
 ```
 
