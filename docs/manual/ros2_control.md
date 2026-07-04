@@ -120,10 +120,12 @@ Ready-to-use xacro for single, dual and twin are under
 
 ### Twin mode — two single-channel controllers on one bus
 
-> **Status: code-complete and unit-tested; simultaneous diff-drive is not yet
-> hardware-verified.** The library (`mdrobot_cpp`) and the slave-id change have
-> been confirmed on real hardware, but two controllers driving a base together
-> have not. Treat twin as **experimental** until that is verified.
+> **Status: hardware-verified end-to-end on 2× MD400 v8.6 (2026-06).** Two
+> controllers on one bus (slave ids 1 & 2) drove a differential base through
+> `diff_drive_controller` — velocity and differential steering with correct
+> odometry, and stop + torque-off on both units at shutdown. Still **not**
+> hardware-verified: the both-stop partial-failure policy when one controller
+> drops out mid-drive (unit-tested only).
 
 `device_type=twin` drives **two separate single-channel controllers** (e.g. two
 MD400) over **one** serial bus, addressed by **distinct Modbus slave ids**, laid

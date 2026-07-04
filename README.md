@@ -1,6 +1,27 @@
 # mdrobot_motor_driver
 
-ROS 2 driver and Python library for **MDROBOT MD-series BLDC/DC motor controllers**, controlled over **RS485 / Modbus RTU**.
+[![CI](https://github.com/TaesuYim/mdrobot_motor_driver/actions/workflows/ci.yml/badge.svg)](https://github.com/TaesuYim/mdrobot_motor_driver/actions/workflows/ci.yml)
+
+**Unofficial** driver for **MDROBOT MD-series BLDC/DC motor controllers** (RS485 /
+Modbus RTU) — control a motor directly from Python, or through the included ROS 2
+node / `ros2_control` plugin. Not affiliated with MDROBOT; use it within the scope
+that has actually been tested — see
+[Tested drivers & firmware](#tested-drivers--firmware) first.
+
+> **Before you drive a motor**
+>
+> - This software turns real motors. Bench-test with the shaft free, start at low
+>   rpm, and keep a power cut / e-stop within reach. A spinning motor does **not**
+>   stop just because your program exits or the port closes — command a stop
+>   (the ROS 2 layers do this on shutdown; in plain Python use `try/finally`).
+> - **Units differ by layer**: the ROS 2 node's command/state topics are always
+>   **raw controller units** (rpm / encoder counts), while the `ros2_control`
+>   plugin uses **SI units** (rad/s, rad) once `counts_per_rev` is set. Details in
+>   the [manual](docs/manual/README.md).
+> - New here? Start with the [Python quick start](#python-library) — it needs
+>   nothing but `pip` and an RS485 adapter, no ROS 2.
+
+All packages are versioned and released together — current release: **1.0.0**.
 
 The project is a colcon workspace of complementary packages — use only what you need:
 
@@ -26,8 +47,7 @@ mdrobot_motor_driver/            # this repo == a colcon workspace
     ├── mdrobot/                 # Python communication library (ament_python)
     ├── mdrobot_cpp/             # C++ communication library (ament_cmake)
     ├── mdrobot_ros2_driver/     # Python ROS 2 node (ament_python), depends on mdrobot
-    ├── mdrobot_ros2_control/    # C++ ros2_control SystemInterface (ament_cmake), depends on mdrobot_cpp
-    └── mdrobot_diffbot_example/ # optional example diff-drive robot (see its own README)
+    └── mdrobot_ros2_control/    # C++ ros2_control SystemInterface (ament_cmake), depends on mdrobot_cpp
 docs/manual/                     # detailed user manual
 examples/                        # minimal standalone examples
 ```
@@ -55,6 +75,9 @@ source install/setup.bash
 
 ```bash
 pip install -e 'src/mdrobot[serial]'    # [serial] pulls in pyserial
+
+# or straight from GitHub, without cloning:
+pip install 'mdrobot[serial] @ git+https://github.com/TaesuYim/mdrobot_motor_driver.git#subdirectory=src/mdrobot'
 ```
 
 ## Quick start
@@ -124,7 +147,7 @@ robot's URDF `<ros2_control>` block. Connection settings — serial `port`, per-
 `motor_id`, `counts_per_rev` (positive → SI rad/rad·s, otherwise raw count/rpm), gating —
 live in `config/<device_type>_controllers.yaml` (the `mdrobot_hardware` section the launch
 reads). **Twin** mode needs the two controllers re-IDed to distinct Modbus slave ids first
-(it is code-complete and unit-tested, but simultaneous diff-drive is not yet hardware-verified).
+(hardware-verified on 2× MD400 — see [Tested drivers & firmware](#tested-drivers--firmware)).
 See the manual for the full parameter list and twin mode.
 
 ## Documentation
@@ -146,15 +169,17 @@ the doc convention `DL/10 . DL%10`):
 | Model | Type | Firmware (raw DL / approx.) | Verified |
 |---|---|---|---|
 | MD400 | single | DL=81 / v8.1 | identify, read, velocity (both directions), position (absolute/relative), ROS 2 node |
-| MD400 | single | DL=86 / v8.6 | ships in encoder mode → set `ENC_PPR (156) = 0` for hall closed-loop drive (counts/rev = 30); velocity, position, ROS 2 node; `PID_ID (133)` slave-id change |
+| MD400 | single | DL=86 / v8.6 | ships in encoder mode → set `ENC_PPR (156) = 0` for hall closed-loop drive (counts/rev = 30); velocity, position, ROS 2 node; `PID_ID (133)` slave-id change; twin diff-drive (2 units, one bus) via ros2_control |
 | PNT50 | dual | DL=45 / v4.5 | identify, read, velocity (both motors), position (simultaneous), ROS 2 node |
 | MD400T | dual | DL=72 / v7.2 | identify, read, velocity (both motors), position (simultaneous), ROS 2 node |
 
-> **Twin mode** (two single-channel controllers on one bus) is **code-complete and
-> unit-tested**, and the `PID_ID` slave-id change is confirmed on MD400 v8.6 (re-ID one
-> unit first by writing `PID_ID (133)` with the wire word `(new_id << 8) | 0xAA`, e.g.
-> id 2 → `0x02AA`), but two controllers driving a base together have **not** yet been
-> hardware-verified — treat it as experimental. Full steps:
+> **Twin mode** (two single-channel controllers on one bus) is **hardware-verified
+> end-to-end** on 2× MD400 v8.6 (2026-06): one RS485 bus at slave ids 1 & 2,
+> `diff_drive_controller` velocity + differential steering with correct odometry,
+> and stop + torque-off on shutdown. Re-ID one unit first by writing `PID_ID (133)`
+> with the wire word `(new_id << 8) | 0xAA` (e.g. id 2 → `0x02AA`). Still **not**
+> hardware-verified: the both-stop policy when one of the two controllers drops out
+> mid-drive (unit-tested only). Full steps:
 > [ros2_control → Twin mode](docs/manual/ros2_control.md#twin-mode--two-single-channel-controllers-on-one-bus).
 
 ## License

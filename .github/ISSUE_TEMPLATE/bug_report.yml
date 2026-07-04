@@ -1,0 +1,54 @@
+name: Bug report
+description: Something doesn't work with your MDROBOT controller
+labels: ["bug"]
+body:
+  - type: input
+    id: model
+    attributes:
+      label: Controller model
+      description: e.g. MD400, PNT50, MD400T, MD200T
+      placeholder: MD400
+    validations:
+      required: true
+  - type: input
+    id: firmware
+    attributes:
+      label: Firmware version (raw DL byte)
+      description: "`d.get_version()` in Python, or read `PID_VERSION (1)` — the raw DL value, e.g. `86`."
+      placeholder: "86"
+    validations:
+      required: true
+  - type: dropdown
+    id: interface
+    attributes:
+      label: Interface used
+      options:
+        - Python library (mdrobot)
+        - C++ library (mdrobot_cpp)
+        - ROS 2 node (mdrobot_ros2_driver)
+        - ros2_control — single
+        - ros2_control — dual
+        - ros2_control — twin
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, ROS 2 distro (if used), RS485 adapter chip (FTDI / CH340 / …), serial port
+      placeholder: Ubuntu 24.04 · ROS 2 Jazzy · CH340 · /dev/ttyUSB0
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened, and what did you expect?
+      description: Include whether the motor was connected/powered and whether it was expected to move.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Commands and logs
+      description: The exact commands/code you ran and their full output (raw frames if you have them).
+      render: shell
