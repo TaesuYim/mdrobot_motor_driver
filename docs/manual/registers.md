@@ -3,7 +3,8 @@
 Named constants for raw access via `driver.client` (Python `mdrobot.registers`) or the
 `ModbusClient` (C++ `mdrobot_cpp/registers.hpp`). **Never inline the numbers** — use the
 constant names. 16-bit words are big-endian; 32-bit longs are low word first. Framing
-detail is in the [protocol docs](../dev/protocol/README.md).
+detail lives in the shipped sources: [`frame.py`](../../src/mdrobot/mdrobot/frame.py) /
+[`frame.hpp`](../../src/mdrobot_cpp/include/mdrobot_cpp/frame.hpp).
 
 Access legend: **R** read · **W** write (setting/EEPROM) · **C** command/control write
 (velocity, position, start/stop, or via the `PID_COMMAND (10)` gateway). This lists the
