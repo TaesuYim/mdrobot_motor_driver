@@ -52,7 +52,7 @@ python -c "import mdrobot; print(mdrobot.__file__)"   # verify
 > or use a stable `/dev/serial/by-id/...` path); swapped **A/B** lines (try swapping
 > them); a missing common **GND**; the wrong **baud rate / ID**. Termination/bias resistors are rarely needed on
 > a short, low-speed (19200) bus. Per-model verification status is in
-> [`tested-devices.md`](../dev/tested-devices.md).
+> [Tested drivers & firmware](../../README.md#tested-drivers--firmware).
 
 ## Quick start
 
