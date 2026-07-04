@@ -14,10 +14,11 @@ that has actually been tested — see
 >   rpm, and keep a power cut / e-stop within reach. A spinning motor does **not**
 >   stop just because your program exits or the port closes — command a stop
 >   (the ROS 2 layers do this on shutdown; in plain Python use `try/finally`).
-> - **Units differ by layer**: the ROS 2 node's command/state topics are always
->   **raw controller units** (rpm / encoder counts), while the `ros2_control`
->   plugin uses **SI units** (rad/s, rad) once `counts_per_rev` is set. Details in
->   the [manual](docs/manual/README.md).
+> - **Units differ by layer**: the ROS 2 node's **command** topics (`cmd_velocity`,
+>   `cmd_position`) are always **raw controller units** (rpm / encoder counts) —
+>   even when `counts_per_rev` is set, which switches its `joint_states` to SI
+>   (rad, rad/s). The `ros2_control` plugin uses **SI for both commands and state**
+>   once `counts_per_rev` is set. Details in the [manual](docs/manual/README.md).
 > - New here? Start with the [Python quick start](#python-library) — it needs
 >   nothing but `pip` and an RS485 adapter, no ROS 2.
 
@@ -47,7 +48,8 @@ mdrobot_motor_driver/            # this repo == a colcon workspace
     ├── mdrobot/                 # Python communication library (ament_python)
     ├── mdrobot_cpp/             # C++ communication library (ament_cmake)
     ├── mdrobot_ros2_driver/     # Python ROS 2 node (ament_python), depends on mdrobot
-    └── mdrobot_ros2_control/    # C++ ros2_control SystemInterface (ament_cmake), depends on mdrobot_cpp
+    ├── mdrobot_ros2_control/    # C++ ros2_control SystemInterface (ament_cmake), depends on mdrobot_cpp
+    └── mdrobot_diffbot_example/ # optional example diff-drive robot (see its own README)
 docs/manual/                     # detailed user manual
 examples/                        # minimal standalone examples
 ```
