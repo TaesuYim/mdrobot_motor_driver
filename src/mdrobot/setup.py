@@ -4,7 +4,7 @@ package_name = "mdrobot"
 
 setup(
     name=package_name,
-    version="1.0.0",
+    version="1.1.0",
     packages=find_packages(include=["mdrobot", "mdrobot.*"]),
     data_files=[
         ("share/ament_index/resource_index/packages", ["resource/" + package_name]),

@@ -52,16 +52,20 @@ class _DriverBase:
     @classmethod
     def open(
         cls,
-        port: str,
+        port: str | None = None,
         baudrate: int = DEFAULT_BAUDRATE,
         *,
         slave_id: int = DEFAULT_SLAVE_ID,
         timeout: float = DEFAULT_TIMEOUT,
     ):
-        """Open a port and build the driver (convenience constructor). Close with `close()`."""
-        from .transport import SerialTransport
+        """Open a port and build the driver (convenience constructor). Close with `close()`.
 
-        transport = SerialTransport(port, baudrate, timeout=timeout)
+        With `port` omitted, the MDROBOT_PORT environment variable is used
+        (see `mdrobot.resolve_port`); if neither is set, ValueError is raised.
+        """
+        from .transport import SerialTransport, resolve_port
+
+        transport = SerialTransport(resolve_port(port), baudrate, timeout=timeout)
         return cls(ModbusClient(transport, slave_id=slave_id))
 
     def close(self) -> None:

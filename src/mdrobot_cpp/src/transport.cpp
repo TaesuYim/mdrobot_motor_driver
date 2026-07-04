@@ -2,6 +2,7 @@
 #include "mdrobot_cpp/transport.hpp"
 
 #include <cerrno>
+#include <cstdlib>
 #include <cstring>
 #include <stdexcept>
 #include <thread>
@@ -145,6 +146,27 @@ void SerialTransport::close() {
 
 bool SerialTransport::is_open() const {
   return fd_ >= 0;
+}
+
+
+std::string resolve_port(const std::string& port) {
+  if (!port.empty()) {
+    return port;
+  }
+  const char* env = std::getenv(kPortEnvVar);
+  if (env != nullptr) {
+    // Trim surrounding whitespace (mirrors the Python library's env.strip()).
+    std::string value(env);
+    const auto begin = value.find_first_not_of(" \t\r\n");
+    if (begin != std::string::npos) {
+      const auto end = value.find_last_not_of(" \t\r\n");
+      return value.substr(begin, end - begin + 1);
+    }
+  }
+  throw std::invalid_argument(
+      "no serial port given and the MDROBOT_PORT environment variable is not set — "
+      "pass a port (e.g. open(\"/dev/ttyUSB0\")) or set it once: "
+      "export MDROBOT_PORT=/dev/ttyUSB0 (see manual/port-setup.md)");
 }
 
 }  // namespace mdrobot

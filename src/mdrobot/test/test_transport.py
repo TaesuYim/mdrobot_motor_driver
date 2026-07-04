@@ -113,3 +113,49 @@ def test_modbus_client_short_read_raises():
     client = ModbusClient(SerialTransport.from_serial(fake), slave_id=1)
     with pytest.raises(IncompleteResponseError):
         client.read_register(1)
+
+
+# --- resolve_port / MDROBOT_PORT --------------------------------------------------------
+
+
+def test_resolve_port_explicit_wins(monkeypatch):
+    monkeypatch.setenv("MDROBOT_PORT", "/dev/from_env")
+    from mdrobot.transport import resolve_port
+
+    assert resolve_port("/dev/explicit") == "/dev/explicit"
+
+
+def test_resolve_port_falls_back_to_env(monkeypatch):
+    monkeypatch.setenv("MDROBOT_PORT", "/dev/from_env")
+    from mdrobot.transport import resolve_port
+
+    assert resolve_port() == "/dev/from_env"
+    assert resolve_port(None) == "/dev/from_env"
+    assert resolve_port("") == "/dev/from_env"
+
+
+def test_resolve_port_missing_raises_with_hint(monkeypatch):
+    monkeypatch.delenv("MDROBOT_PORT", raising=False)
+    from mdrobot.transport import resolve_port
+
+    with pytest.raises(ValueError, match="MDROBOT_PORT"):
+        resolve_port()
+
+
+def test_driver_open_without_port_raises_before_serial(monkeypatch):
+    """open() with no port and no env must fail with the config hint, not a pyserial error."""
+    monkeypatch.delenv("MDROBOT_PORT", raising=False)
+    from mdrobot.device import SingleMotorDriver
+
+    with pytest.raises(ValueError, match="MDROBOT_PORT"):
+        SingleMotorDriver.open()
+
+
+def test_resolve_port_env_trimmed_and_whitespace_only_raises(monkeypatch):
+    from mdrobot.transport import resolve_port
+
+    monkeypatch.setenv("MDROBOT_PORT", "  /dev/padded \n")
+    assert resolve_port() == "/dev/padded"
+    monkeypatch.setenv("MDROBOT_PORT", "   ")
+    with pytest.raises(ValueError, match="MDROBOT_PORT"):
+        resolve_port()

@@ -11,6 +11,17 @@
 
 namespace mdrobot {
 
+/// Environment variable consulted when no port is given explicitly (see resolve_port).
+inline constexpr const char* kPortEnvVar = "MDROBOT_PORT";
+
+/// Return the serial port to use: the explicit argument, else $MDROBOT_PORT.
+///
+/// An explicit non-empty @p port always wins. With @p port empty, the
+/// MDROBOT_PORT environment variable is used, so programs can omit the port
+/// entirely (`export MDROBOT_PORT=/dev/ttyUSB0` once). Throws
+/// std::invalid_argument with a how-to-fix message when neither is set.
+std::string resolve_port(const std::string& port = "");
+
 /// Abstract transport interface — the protocol layer depends on this.
 class Transport {
  public:

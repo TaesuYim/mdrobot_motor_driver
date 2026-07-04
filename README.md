@@ -18,11 +18,11 @@ that has actually been tested — see
 >   `cmd_position`) are always **raw controller units** (rpm / encoder counts) —
 >   even when `counts_per_rev` is set, which switches its `joint_states` to SI
 >   (rad, rad/s). The `ros2_control` plugin uses **SI for both commands and state**
->   once `counts_per_rev` is set. Details in the [manual](docs/manual/README.md).
+>   once `counts_per_rev` is set. Details in the [manual](manual/README.md).
 > - New here? Start with the [Python quick start](#python-library) — it needs
 >   nothing but `pip` and an RS485 adapter, no ROS 2.
 
-All packages are versioned and released together — current release: **1.0.0**.
+All packages are versioned and released together — current release: **1.1.0**.
 
 The project is a colcon workspace of complementary packages — use only what you need:
 
@@ -50,7 +50,7 @@ mdrobot_motor_driver/            # this repo == a colcon workspace
     ├── mdrobot_ros2_driver/     # Python ROS 2 node (ament_python), depends on mdrobot
     ├── mdrobot_ros2_control/    # C++ ros2_control SystemInterface (ament_cmake), depends on mdrobot_cpp
     └── mdrobot_diffbot_example/ # optional example diff-drive robot (see its own README)
-docs/manual/                     # detailed user manual
+manual/                          # detailed user manual
 examples/                        # minimal standalone examples
 ```
 
@@ -120,7 +120,11 @@ with DualMotorDriver.open("/dev/ttyUSB0") as d:
         d.stop(); d.torque_off_both()
 ```
 
-> First time? Recent firmware ships in encoder mode — see the [first-drive checklist](docs/manual/python.md#quick-start).
+> First time? Recent firmware ships in encoder mode — see the [first-drive checklist](manual/python.md#quick-start).
+
+> Tired of typing the port? `export MDROBOT_PORT=/dev/ttyUSB0` once and call
+> `SingleMotorDriver.open()` with no arguments — or give the adapter a permanent
+> name (and permissions) with a udev rule. Both in [Port setup](manual/port-setup.md).
 
 Low-level register/command access is always available via `d.client` for anything the high-level API doesn't cover.
 
@@ -163,10 +167,11 @@ See the manual for the full parameter list and twin mode.
 
 Full usage, parameters, safety and troubleshooting are in the manual:
 
-- **[Python library usage](docs/manual/python.md)** — connect, read, drive, position control, API reference tables, error handling, raw access
-- **[C++ library usage](docs/manual/cpp.md)** — `mdrobot_cpp` API reference tables, `open()` factory, object lifetime, error handling
-- **[ROS 2 usage](docs/manual/ros2.md)** — build, launch, parameters, topics/services, `joint_states` units, shutdown, troubleshooting
-- **[ros2_control (C++)](docs/manual/ros2_control.md)** — `mdrobot_cpp` library + the `SystemInterface` plugin, URDF parameters, controllers, twin mode
+- **[Port setup](manual/port-setup.md)** — set the serial port **once**: udev fixed name + permissions, the `MDROBOT_PORT` default port, multiple adapters
+- **[Python library usage](manual/python.md)** — connect, read, drive, position control, API reference tables, error handling, raw access
+- **[C++ library usage](manual/cpp.md)** — `mdrobot_cpp` API reference tables, `open()` factory, object lifetime, error handling
+- **[ROS 2 usage](manual/ros2.md)** — build, launch, parameters, topics/services, `joint_states` units, shutdown, troubleshooting
+- **[ros2_control (C++)](manual/ros2_control.md)** — `mdrobot_cpp` library + the `SystemInterface` plugin, URDF parameters, controllers, twin mode
 
 Minimal runnable examples are in [`examples/`](examples/).
 
@@ -189,7 +194,7 @@ the doc convention `DL/10 . DL%10`):
 > with the wire word `(new_id << 8) | 0xAA` (e.g. id 2 → `0x02AA`). Still **not**
 > hardware-verified: the both-stop policy when one of the two controllers drops out
 > mid-drive (unit-tested only). Full steps:
-> [ros2_control → Twin mode](docs/manual/ros2_control.md#twin-mode--two-single-channel-controllers-on-one-bus).
+> [ros2_control → Twin mode](manual/ros2_control.md#twin-mode--two-single-channel-controllers-on-one-bus).
 
 ## License
 

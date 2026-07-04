@@ -9,6 +9,7 @@ from the plain Python or C++ library, the ROS 2 node, or `ros2_control`.
 | **[C++ library](cpp.md)** | `mdrobot_cpp` — same API in C++ (`*Connection::open` factory, object lifetime, **API reference tables**, error handling). |
 | **[ROS 2 node](ros2.md)** | `mdrobot_ros2_driver` — build, launch, parameters, topics/services, `joint_states` units, shutdown, troubleshooting. |
 | **[ros2_control (C++)](ros2_control.md)** | `mdrobot_ros2_control` — the `SystemInterface` plugin: URDF parameters, state/command interfaces, units, controllers, and **twin mode** (two single-channel controllers on one bus). |
+| **[Port setup](port-setup.md)** | Set the serial port **once**: udev fixed name + permissions, the `MDROBOT_PORT` default port, stable `by-id` paths, several adapters. |
 | **[Register reference](registers.md)** | Full table of register numbers, command codes and status-1 bits (derived from `registers.py` / `status.py`) for raw access. |
 
 > Both single-channel (one motor) and dual-channel (two motors) controllers are

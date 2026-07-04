@@ -11,11 +11,16 @@ Usage:
     python3 examples/quickstart.py --port /dev/ttyUSB0 --type dual
     # low-speed drive (the motor WILL turn!)
     python3 examples/quickstart.py --port /dev/ttyUSB0 --type single --drive --rpm 40
+
+    # --port can be omitted once MDROBOT_PORT is set (see manual/port-setup.md):
+    export MDROBOT_PORT=/dev/ttyUSB0
+    python3 examples/quickstart.py --type single
 """
 
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import time
 from pathlib import Path
@@ -63,7 +68,8 @@ def drive(driver, dual: bool, rpm: int, hold: float) -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="mdrobot minimal example")
-    ap.add_argument("--port", required=True)
+    ap.add_argument("--port", default=os.environ.get("MDROBOT_PORT"),
+                    help="serial port (default: $MDROBOT_PORT)")
     ap.add_argument("--type", choices=["single", "dual"], required=True)
     ap.add_argument("--baud", type=int, default=19200)
     ap.add_argument("--id", type=int, default=1)
@@ -71,13 +77,15 @@ def main() -> int:
     ap.add_argument("--rpm", type=int, default=40)
     ap.add_argument("--hold", type=float, default=1.5)
     args = ap.parse_args()
+    if not args.port:
+        ap.error("--port is required (or set MDROBOT_PORT — see manual/port-setup.md)")
 
     dual = args.type == "dual"
     cls = DualMotorDriver if dual else SingleMotorDriver
     with cls.open(args.port, args.baud, slave_id=args.id) as driver:
         show(driver, dual)
         # Some single-channel controllers need USE_LIMIT_SW=0 for serial drive
-        # (see the troubleshooting section in docs/manual/).
+        # (see the troubleshooting section in manual/).
         if args.drive and not dual:
             driver.client.write_register(17, 0)  # USE_LIMIT_SW = 0
         if args.drive:

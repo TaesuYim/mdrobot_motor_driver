@@ -26,7 +26,10 @@ Unit tests (golden Modbus vectors, decoders, units):
 ## Quick start
 
 The `*Connection::open()` factories build transport + client + driver in one call
-and close the port on destruction (RAII) — the easiest entry point:
+and close the port on destruction (RAII) — the easiest entry point. With the port
+argument omitted, the `MDROBOT_PORT` environment variable is used (an explicit
+port always wins; neither set → `std::invalid_argument`) — see
+[Port setup](port-setup.md):
 
 ```cpp
 #include "mdrobot_cpp/device.hpp"
@@ -86,8 +89,9 @@ mdrobot::SingleMotorDriver drv(client);   // drv references client; keep both al
 |---|---|
 | `SerialTransport(port, baudrate=19200, timeout=0.3, settle=0.2, write_timeout=1.0)` | Open a POSIX serial port (8N1). Throws `std::runtime_error` on failure; closes on destruction. |
 | `ModbusClient(Transport& t, uint8_t slave_id=1)` | Modbus RTU client over a transport. |
-| `SingleMotorConnection::open(port, baudrate=19200, slave_id=1)` | → `SingleMotorConnection` owning transport+client+driver. |
-| `DualMotorConnection::open(port, baudrate=19200, slave_id=1)` | → `DualMotorConnection` (dual). |
+| `SingleMotorConnection::open(port="", baudrate=19200, slave_id=1)` | → `SingleMotorConnection` owning transport+client+driver. Port empty/omitted → `$MDROBOT_PORT` ([Port setup](port-setup.md)). |
+| `DualMotorConnection::open(port="", baudrate=19200, slave_id=1)` | → `DualMotorConnection` (dual). |
+| `resolve_port(port="")` | The port-defaulting rule itself: explicit arg, else `$MDROBOT_PORT`, else throws. |
 | `conn->`, `conn.driver()`, `conn.client()` | Access the driver / client held by a connection. |
 
 ## Shared driver methods (`DriverBase`)

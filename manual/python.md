@@ -34,6 +34,11 @@ python -c "import mdrobot; print(mdrobot.__file__)"   # verify
    ```
    On **Windows** the port is `COMx` (e.g. `COM3`); on **macOS** it is
    `/dev/cu.usbserial-*`. The permission commands above are Linux-only.
+
+   > **Set the port once instead** — a udev rule gives the adapter a permanent
+   > name *and* permissions (no more `ttyUSB0`→`ttyUSB1`, no more `chmod`), and
+   > the `MDROBOT_PORT` environment variable makes `open()` work with no port
+   > argument at all. See **[Port setup](port-setup.md)**.
 4. A controller is **dual-channel** if it answers the dual-only monitor register
    `PID_PNT_MONITOR (216)`, otherwise it is **single-channel**:
    ```python
@@ -49,10 +54,10 @@ python -c "import mdrobot; print(mdrobot.__file__)"   # verify
 
 > **No reply / `IncompleteResponseError`?** Check, in order: the **port** is right
 > (it can become `ttyUSB1` after re-plugging or a reboot — re-check `ls /dev/ttyUSB*`,
-> or use a stable `/dev/serial/by-id/...` path); swapped **A/B** lines (try swapping
+> or set up a fixed name: [Port setup](port-setup.md)); swapped **A/B** lines (try swapping
 > them); a missing common **GND**; the wrong **baud rate / ID**. Termination/bias resistors are rarely needed on
 > a short, low-speed (19200) bus. Per-model verification status is in
-> [Tested drivers & firmware](../../README.md#tested-drivers--firmware).
+> [Tested drivers & firmware](../README.md#tested-drivers--firmware).
 
 ## Quick start
 
@@ -121,8 +126,8 @@ count (`+` = CCW). `speed` for position moves is the max rpm magnitude.
 
 | Method | Returns | Description |
 |---|---|---|
-| `SingleMotorDriver.open(port, baudrate=19200, *, slave_id=1, timeout=0.3)` | driver | Open a port and build the driver. Use as a context manager or `close()` it. |
-| `DualMotorDriver.open(port, baudrate=19200, *, slave_id=1, timeout=0.3)` | driver | Same, for a dual-channel controller. |
+| `SingleMotorDriver.open(port=None, baudrate=19200, *, slave_id=1, timeout=0.3)` | driver | Open a port and build the driver. Use as a context manager or `close()` it. `port` omitted → `$MDROBOT_PORT` ([Port setup](port-setup.md)); neither set → `ValueError`. |
+| `DualMotorDriver.open(port=None, baudrate=19200, *, slave_id=1, timeout=0.3)` | driver | Same, for a dual-channel controller. |
 | `close()` | `None` | Close the serial port. (Context-manager `with` does this automatically.) |
 | `ping()` | `bool` | `True` if the controller answers a version read. |
 | `get_version()` | `int` | Firmware/DL version register. |
@@ -296,7 +301,7 @@ d.client.write_register(reg.PID_USE_LIMIT_SW, 0)   # = write_register(17, 0)
 `counts_per_rev` is counts per **one revolution of the motor shaft** — the
 controller reports both position (count) and speed (rpm) at the motor, so measure
 it there: turn the motor shaft exactly N turns and divide
-([`examples/calibrate_counts_per_rev.py`](../../examples/calibrate_counts_per_rev.py)).
+([`examples/calibrate_counts_per_rev.py`](../examples/calibrate_counts_per_rev.py)).
 Gear ratio is **not** applied here: `counts_to_rad` scales position only, while
 `rpm_to_rad_s` needs no `counts_per_rev`. Measuring at a geared output shaft would
 make position the output angle while velocity stayed the motor rate — the two would
@@ -315,8 +320,9 @@ MdrobotError
 ```
 
 A missing or wrong **port** fails earlier and differently: `open()` raises pyserial's
-`SerialException` / `FileNotFoundError` (not an `MdrobotError`), so handle those around
-`open()` itself.
+`SerialException` / `FileNotFoundError` — or `ValueError` when the port is omitted and
+`MDROBOT_PORT` is not set ([Port setup](port-setup.md)) — none of them an
+`MdrobotError`, so handle those around `open()` itself.
 
 ```python
 from mdrobot import SingleMotorDriver

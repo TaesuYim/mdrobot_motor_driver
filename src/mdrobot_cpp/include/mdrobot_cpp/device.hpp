@@ -11,6 +11,7 @@
 
 #include "mdrobot_cpp/protocol.hpp"
 #include "mdrobot_cpp/status.hpp"
+#include "mdrobot_cpp/transport.hpp"
 
 namespace mdrobot {
 
@@ -138,9 +139,11 @@ class DualMotorDriver : public DriverBase {
 /// returned by value through C++17 guaranteed copy elision.
 class SingleMotorConnection {
  public:
-  static SingleMotorConnection open(const std::string& port, int baudrate = 19200,
+  /// With @p port empty/omitted, the MDROBOT_PORT environment variable is used
+  /// (see resolve_port); throws std::invalid_argument when neither is set.
+  static SingleMotorConnection open(const std::string& port = "", int baudrate = 19200,
                                     uint8_t slave_id = 1) {
-    return SingleMotorConnection(port, baudrate, slave_id);
+    return SingleMotorConnection(resolve_port(port), baudrate, slave_id);
   }
 
   SingleMotorConnection(const SingleMotorConnection&) = delete;
@@ -170,9 +173,11 @@ class SingleMotorConnection {
 ///   conn->set_velocities(40, 40);
 class DualMotorConnection {
  public:
-  static DualMotorConnection open(const std::string& port, int baudrate = 19200,
+  /// With @p port empty/omitted, the MDROBOT_PORT environment variable is used
+  /// (see resolve_port); throws std::invalid_argument when neither is set.
+  static DualMotorConnection open(const std::string& port = "", int baudrate = 19200,
                                   uint8_t slave_id = 1) {
-    return DualMotorConnection(port, baudrate, slave_id);
+    return DualMotorConnection(resolve_port(port), baudrate, slave_id);
   }
 
   DualMotorConnection(const DualMotorConnection&) = delete;

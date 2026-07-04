@@ -47,7 +47,7 @@ Parameters: `port`, `baudrate` (19200), `motor_id` (1), `device_type`
 Sign convention (verified on hardware): `+` = increasing position (CCW).
 
 **Full documentation** (parameters, `joint_states` units, shutdown,
-troubleshooting): see [../../docs/manual/ros2.md](../../docs/manual/ros2.md).
+troubleshooting): see [../../manual/ros2.md](../../manual/ros2.md).
 
 ## Safety
 

@@ -10,9 +10,33 @@ import fine without pyserial installed.
 
 from __future__ import annotations
 
+import os
 from typing import Any, Protocol, runtime_checkable
 
 from .constants import DEFAULT_BAUDRATE, DEFAULT_TIMEOUT
+
+# Environment variable consulted when no port is given explicitly (see resolve_port).
+PORT_ENV_VAR = "MDROBOT_PORT"
+
+
+def resolve_port(port: str | None = None) -> str:
+    """Return the serial port to use: the explicit argument, else $MDROBOT_PORT.
+
+    An explicit `port` always wins. With `port` None/empty, the MDROBOT_PORT
+    environment variable is used, so scripts can omit the port entirely
+    (`export MDROBOT_PORT=/dev/ttyUSB0` once, e.g. in ~/.bashrc). Raises
+    ValueError with a how-to-fix message when neither is set.
+    """
+    if port:
+        return port
+    env = os.environ.get(PORT_ENV_VAR, "").strip()
+    if env:
+        return env
+    raise ValueError(
+        "no serial port given and the MDROBOT_PORT environment variable is not set — "
+        "pass a port (e.g. open('/dev/ttyUSB0')) or set it once: "
+        "export MDROBOT_PORT=/dev/ttyUSB0 (see manual/port-setup.md)"
+    )
 
 
 @runtime_checkable

@@ -6,6 +6,9 @@
 /// and read decoding are verified.
 
 #include <cmath>
+#include <cstdlib>
+#include <stdexcept>
+#include <string>
 
 #include <gtest/gtest.h>
 
@@ -518,4 +521,37 @@ TEST(Device, TwinIndependentPositionAndUseLimitSwPerSlave) {
             build_write_multiple_request(1, PID_POSI_VEL_CMD, {80, 0, 50}));
   EXPECT_EQ(dev.frames[3],
             build_write_multiple_request(2, PID_POSI_VEL_CMD, {0xFFB0, 0xFFFF, 50}));
+}
+
+// --- resolve_port / MDROBOT_PORT ------------------------------------------------------
+
+TEST(ResolvePort, ExplicitWinsOverEnv) {
+  ::setenv("MDROBOT_PORT", "/dev/from_env", 1);
+  EXPECT_EQ(resolve_port("/dev/explicit"), "/dev/explicit");
+  ::unsetenv("MDROBOT_PORT");
+}
+
+TEST(ResolvePort, FallsBackToEnv) {
+  ::setenv("MDROBOT_PORT", "/dev/from_env", 1);
+  EXPECT_EQ(resolve_port(), "/dev/from_env");
+  EXPECT_EQ(resolve_port(""), "/dev/from_env");
+  ::unsetenv("MDROBOT_PORT");
+}
+
+TEST(ResolvePort, MissingThrowsWithHint) {
+  ::unsetenv("MDROBOT_PORT");
+  try {
+    resolve_port();
+    FAIL() << "expected std::invalid_argument";
+  } catch (const std::invalid_argument& e) {
+    EXPECT_NE(std::string(e.what()).find("MDROBOT_PORT"), std::string::npos);
+  }
+}
+
+TEST(ResolvePort, EnvIsTrimmedAndWhitespaceOnlyThrows) {
+  ::setenv("MDROBOT_PORT", "  /dev/padded \n", 1);
+  EXPECT_EQ(resolve_port(), "/dev/padded");
+  ::setenv("MDROBOT_PORT", "   ", 1);
+  EXPECT_THROW(resolve_port(), std::invalid_argument);
+  ::unsetenv("MDROBOT_PORT");
 }

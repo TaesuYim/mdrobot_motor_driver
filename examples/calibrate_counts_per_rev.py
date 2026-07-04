@@ -32,6 +32,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import time
 from pathlib import Path
@@ -51,7 +52,8 @@ def read_positions(driver, dual: bool) -> list[int]:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="counts_per_rev calibration")
-    ap.add_argument("--port", required=True)
+    ap.add_argument("--port", default=os.environ.get("MDROBOT_PORT"),
+                    help="serial port (default: $MDROBOT_PORT)")
     ap.add_argument("--type", choices=["single", "dual"], default="single")
     ap.add_argument("--method", choices=["manual", "driven"], default="manual")
     ap.add_argument("--revs", type=float, default=10.0, help="number of revolutions to turn (default 10)")
@@ -59,6 +61,8 @@ def main() -> int:
     ap.add_argument("--baud", type=int, default=19200)
     ap.add_argument("--id", type=int, default=1)
     args = ap.parse_args()
+    if not args.port:
+        ap.error("--port is required (or set MDROBOT_PORT — see manual/port-setup.md)")
 
     dual = args.type == "dual"
     cls = DualMotorDriver if dual else SingleMotorDriver

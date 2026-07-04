@@ -37,7 +37,7 @@ from .status import (
     decode_pnt_main_data,
     decode_pnt_monitor,
 )
-from .transport import SerialTransport, Transport
+from .transport import PORT_ENV_VAR, SerialTransport, Transport, resolve_port
 from .units import (
     SLOW_DEFAULT_FULL_SCALE_S,
     counts_to_rad,
@@ -62,6 +62,8 @@ __all__ = [
     "ModbusClient",
     "Transport",
     "SerialTransport",
+    "resolve_port",
+    "PORT_ENV_VAR",
     "SingleMotorDriver",
     "DualMotorDriver",
     "StatusBits",

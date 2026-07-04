@@ -52,7 +52,7 @@ ros2 run mdrobot_ros2_driver motor_driver_node --ros-args --params-file config/s
 
 | Parameter | Default | Description |
 |---|---|---|
-| `port` | `/dev/ttyUSB0` | serial device |
+| `port` | `/dev/ttyUSB0` | serial device — the node takes it from this yaml, not from `MDROBOT_PORT` (always set it here); for a re-plug-proof name see [Port setup](port-setup.md) |
 | `baudrate` | `19200` | serial baud rate |
 | `motor_id` | `1` | Modbus slave ID |
 | `device_type` | `single` | `single` or `dual` |
@@ -110,7 +110,7 @@ ros2 run mdrobot_ros2_driver motor_driver_node --ros-args \
 — the same length rule as `cmd_velocity`. A wrong length, or any non-positive entry,
 falls back to raw with a warning. Starting points (but **measure** — it is per motor):
 hall ≈ 3 × pole count (8-pole ≈ 24, 10-pole ≈ 30, 4-pole ≈ 12), encoder = 4 × PPR;
-measure with [`examples/calibrate_counts_per_rev.py`](../../examples/calibrate_counts_per_rev.py).
+measure with [`examples/calibrate_counts_per_rev.py`](../examples/calibrate_counts_per_rev.py).
 
 It is counts per **one revolution of the motor shaft** and scales the position state
 only (velocity is `rpm → rad/s` regardless); keep it at the motor and handle any
