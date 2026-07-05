@@ -22,7 +22,7 @@ that has actually been tested — see
 > - New here? Start with the [Python quick start](#python-library) — it needs
 >   nothing but `pip` and an RS485 adapter, no ROS 2.
 
-All packages are versioned and released together — current release: **1.1.0**.
+All packages are versioned and released together — current release: **1.1.1**.
 
 The project is a colcon workspace of complementary packages — use only what you need:
 
@@ -124,7 +124,7 @@ with DualMotorDriver.open("/dev/ttyUSB0") as d:
 
 > Tired of typing the port? `export MDROBOT_PORT=/dev/ttyUSB0` once and call
 > `SingleMotorDriver.open()` with no arguments — or give the adapter a permanent
-> name (and permissions) with a udev rule. Both in [Port setup](manual/port-setup.md).
+> name (and permissions) with a udev rule. Both in [Port setup](manual/setup/port-setup.md).
 
 Low-level register/command access is always available via `d.client` for anything the high-level API doesn't cover.
 
@@ -167,7 +167,7 @@ See the manual for the full parameter list and twin mode.
 
 Full usage, parameters, safety and troubleshooting are in the manual:
 
-- **[Port setup](manual/port-setup.md)** — set the serial port **once**: udev fixed name + permissions, the `MDROBOT_PORT` default port, multiple adapters
+- **[Port setup](manual/setup/port-setup.md)** — set the serial port **once**: udev fixed name + permissions, the `MDROBOT_PORT` default port, multiple adapters
 - **[Python library usage](manual/python.md)** — connect, read, drive, position control, API reference tables, error handling, raw access
 - **[C++ library usage](manual/cpp.md)** — `mdrobot_cpp` API reference tables, `open()` factory, object lifetime, error handling
 - **[ROS 2 usage](manual/ros2.md)** — build, launch, parameters, topics/services, `joint_states` units, shutdown, troubleshooting

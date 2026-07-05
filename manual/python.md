@@ -27,24 +27,26 @@ python -c "import mdrobot; print(mdrobot.__file__)"   # verify
    dmesg | grep -i tty | tail   # which device attached just now
    ```
    Prefer the `/dev/serial/by-id/...` path when you run more than one adapter.
-3. **Port permission (Linux)** — if your user is not in the `dialout` group:
+3. **Set the port up once** — follow **[Port setup](setup/port-setup.md)**: a udev
+   rule gives the adapter a permanent name *and* permissions (no more
+   `ttyUSB0`→`ttyUSB1`, no more `chmod`), and `export MDROBOT_PORT=...` makes
+   `open()` work with no port argument at all. **The rest of this manual assumes
+   `MDROBOT_PORT` is set and writes `open()`** — udev-only? Pass your fixed name
+   (e.g. `open("/dev/mdrobot")`). Skipped it all? Pass the raw port (e.g.
+   `open("/dev/ttyUSB0")`) and fix permissions the quick way:
    ```bash
    sudo usermod -aG dialout $USER   # then log out / back in
    sudo chmod a+rw /dev/ttyUSB0     # or, temporarily
    ```
    On **Windows** the port is `COMx` (e.g. `COM3`); on **macOS** it is
-   `/dev/cu.usbserial-*`. The permission commands above are Linux-only.
-
-   > **Set the port once instead** — a udev rule gives the adapter a permanent
-   > name *and* permissions (no more `ttyUSB0`→`ttyUSB1`, no more `chmod`), and
-   > the `MDROBOT_PORT` environment variable makes `open()` work with no port
-   > argument at all. See **[Port setup](port-setup.md)**.
+   `/dev/cu.usbserial-*`. `MDROBOT_PORT` works on every OS; the udev rule and the
+   permission commands are Linux-only.
 4. A controller is **dual-channel** if it answers the dual-only monitor register
    `PID_PNT_MONITOR (216)`, otherwise it is **single-channel**:
    ```python
    from mdrobot import DualMotorDriver, registers as reg
    from mdrobot.exceptions import MdrobotError
-   with DualMotorDriver.open("/dev/ttyUSB0") as d:
+   with DualMotorDriver.open() as d:      # port from $MDROBOT_PORT (step 3)
        try:
            d.client.read_registers(reg.PID_PNT_MONITOR, 7)
            print("dual")
@@ -54,7 +56,7 @@ python -c "import mdrobot; print(mdrobot.__file__)"   # verify
 
 > **No reply / `IncompleteResponseError`?** Check, in order: the **port** is right
 > (it can become `ttyUSB1` after re-plugging or a reboot — re-check `ls /dev/ttyUSB*`,
-> or set up a fixed name: [Port setup](port-setup.md)); swapped **A/B** lines (try swapping
+> or set up a fixed name: [Port setup](setup/port-setup.md)); swapped **A/B** lines (try swapping
 > them); a missing common **GND**; the wrong **baud rate / ID**. Termination/bias resistors are rarely needed on
 > a short, low-speed (19200) bus. Per-model verification status is in
 > [Tested drivers & firmware](../README.md#tested-drivers--firmware).
@@ -65,14 +67,14 @@ python -c "import mdrobot; print(mdrobot.__file__)"   # verify
 from mdrobot import SingleMotorDriver, DualMotorDriver
 
 # --- read only (never moves the motor) ---
-with SingleMotorDriver.open("/dev/ttyUSB0") as d:
+with SingleMotorDriver.open() as d:      # port from $MDROBOT_PORT — or open("/dev/ttyUSB0")
     print(d.get_version(), d.get_voltage(), "V")
     print(d.get_status().active)     # active alarm/status bit names
     print(d.read_monitor())          # speed / current / position
 
 # --- single-channel drive ---
 import time
-with SingleMotorDriver.open("/dev/ttyUSB0") as d:
+with SingleMotorDriver.open() as d:
     d.enable()                       # REQUIRED before motion
     try:
         d.set_velocity(40)           # signed rpm; + = CCW
@@ -83,7 +85,7 @@ with SingleMotorDriver.open("/dev/ttyUSB0") as d:
     d.move_to(80, speed=60); d.wait_in_position()   # absolute move (counts)
 
 # --- dual-channel drive ---
-with DualMotorDriver.open("/dev/ttyUSB0") as d:
+with DualMotorDriver.open() as d:
     d.enable()
     try:
         d.set_velocities(40, 40)     # motor 1, motor 2
@@ -126,7 +128,7 @@ count (`+` = CCW). `speed` for position moves is the max rpm magnitude.
 
 | Method | Returns | Description |
 |---|---|---|
-| `SingleMotorDriver.open(port=None, baudrate=19200, *, slave_id=1, timeout=0.3)` | driver | Open a port and build the driver. Use as a context manager or `close()` it. `port` omitted → `$MDROBOT_PORT` ([Port setup](port-setup.md)); neither set → `ValueError`. |
+| `SingleMotorDriver.open(port=None, baudrate=19200, *, slave_id=1, timeout=0.3)` | driver | Open a port and build the driver. Use as a context manager or `close()` it. `port` omitted → `$MDROBOT_PORT` ([Port setup](setup/port-setup.md)); neither set → `ValueError`. |
 | `DualMotorDriver.open(port=None, baudrate=19200, *, slave_id=1, timeout=0.3)` | driver | Same, for a dual-channel controller. |
 | `close()` | `None` | Close the serial port. (Context-manager `with` does this automatically.) |
 | `ping()` | `bool` | `True` if the controller answers a version read. |
@@ -138,7 +140,7 @@ count (`+` = CCW). `speed` for position moves is the max rpm magnitude.
 | `reset_alarm()` | `None` | Clear a latched alarm. |
 
 ```python
-with SingleMotorDriver.open("/dev/ttyUSB0", 19200, slave_id=1) as d:
+with SingleMotorDriver.open(slave_id=1) as d:   # port from $MDROBOT_PORT
     if d.ping():
         d.enable()
 ```
@@ -214,7 +216,7 @@ while not d.get_in_position():
 | `move_by_both(delta1, delta2, speed1=100, speed2=None)` | `None` | Relative move both (counts). |
 
 ```python
-with DualMotorDriver.open("/dev/ttyUSB0") as d:
+with DualMotorDriver.open() as d:
     d.enable()
     d.set_velocities(30, -30)            # spin opposite
     print(d.get_current(1), d.get_current(2))   # A
@@ -269,7 +271,7 @@ each a `Monitor`:
 
 Anything the high-level API doesn't cover is reachable through the Modbus client.
 PIDs/commands are named constants in `mdrobot.registers` — a full table of register
-numbers, command codes and status bits is in the **[Register reference](registers.md)**.
+numbers, command codes and status bits is in the **[Register reference](reference/registers.md)**.
 Here **PID** means *parameter ID* (a register address), **not** a control gain.
 
 | Method | Returns | Description |
@@ -321,7 +323,7 @@ MdrobotError
 
 A missing or wrong **port** fails earlier and differently: `open()` raises pyserial's
 `SerialException` / `FileNotFoundError` — or `ValueError` when the port is omitted and
-`MDROBOT_PORT` is not set ([Port setup](port-setup.md)) — none of them an
+`MDROBOT_PORT` is not set ([Port setup](setup/port-setup.md)) — none of them an
 `MdrobotError`, so handle those around `open()` itself.
 
 ```python
@@ -329,7 +331,7 @@ from mdrobot import SingleMotorDriver
 from mdrobot.exceptions import MdrobotError, IncompleteResponseError
 
 try:
-    with SingleMotorDriver.open("/dev/ttyUSB0") as d:
+    with SingleMotorDriver.open() as d:
         d.enable()
         d.set_velocity(40)
 except IncompleteResponseError:
@@ -354,7 +356,7 @@ import time
 from mdrobot import SingleMotorDriver
 from mdrobot.exceptions import MdrobotError
 
-d = SingleMotorDriver.open("/dev/ttyUSB0")
+d = SingleMotorDriver.open()
 try:
     d.enable(); d.set_velocity(40); time.sleep(2.0)
 except (MdrobotError, KeyboardInterrupt):

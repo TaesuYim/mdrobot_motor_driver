@@ -28,16 +28,18 @@ Unit tests (golden Modbus vectors, decoders, units):
 The `*Connection::open()` factories build transport + client + driver in one call
 and close the port on destruction (RAII) — the easiest entry point. With the port
 argument omitted, the `MDROBOT_PORT` environment variable is used (an explicit
-port always wins; neither set → `std::invalid_argument`) — see
-[Port setup](port-setup.md):
+port always wins; neither set → `std::invalid_argument`). **The examples below
+assume `MDROBOT_PORT` is set** ([Port setup](setup/port-setup.md)) — otherwise
+pass the port explicitly, e.g. `open("/dev/ttyUSB0")` or your udev name:
 
 ```cpp
 #include "mdrobot_cpp/device.hpp"
+#include <iostream>          // std::cout
 #include <thread>            // std::this_thread::sleep_for
-#include <chrono>           // std::chrono::seconds (for the dwell below)
+#include <chrono>            // std::chrono::seconds (for the dwell below)
 
 // single-channel — read-only first (no motion): confirm comms
-auto s = mdrobot::SingleMotorConnection::open("/dev/ttyUSB0");  // baud 19200, id 1
+auto s = mdrobot::SingleMotorConnection::open();  // port from $MDROBOT_PORT; 19200, id 1
 std::cout << s->get_version() << " " << s->get_voltage() << " V\n";
 
 // drive (the motor turns)
@@ -49,7 +51,7 @@ s->stop();
 s->torque_off();             // NOTE: destruction closes the port but does NOT stop a moving motor
 
 // dual-channel
-auto d = mdrobot::DualMotorConnection::open("/dev/ttyUSB0");
+auto d = mdrobot::DualMotorConnection::open();
 d->enable();
 d->set_velocities(40, 40);
 std::this_thread::sleep_for(std::chrono::seconds(2));  // hold so they actually turn
@@ -66,7 +68,7 @@ d->torque_off_both();        // NOTE: destruction does NOT stop a moving motor
 ### Manual construction (shared bus / custom transport)
 
 ```cpp
-mdrobot::SerialTransport transport("/dev/ttyUSB0", 19200);
+mdrobot::SerialTransport transport(mdrobot::resolve_port(), 19200);  // or an explicit port string
 mdrobot::ModbusClient client(transport, /*slave_id=*/1);
 mdrobot::SingleMotorDriver drv(client);   // drv references client; keep both alive
 ```
@@ -89,7 +91,7 @@ mdrobot::SingleMotorDriver drv(client);   // drv references client; keep both al
 |---|---|
 | `SerialTransport(port, baudrate=19200, timeout=0.3, settle=0.2, write_timeout=1.0)` | Open a POSIX serial port (8N1). Throws `std::runtime_error` on failure; closes on destruction. |
 | `ModbusClient(Transport& t, uint8_t slave_id=1)` | Modbus RTU client over a transport. |
-| `SingleMotorConnection::open(port="", baudrate=19200, slave_id=1)` | → `SingleMotorConnection` owning transport+client+driver. Port empty/omitted → `$MDROBOT_PORT` ([Port setup](port-setup.md)). |
+| `SingleMotorConnection::open(port="", baudrate=19200, slave_id=1)` | → `SingleMotorConnection` owning transport+client+driver. Port empty/omitted → `$MDROBOT_PORT` ([Port setup](setup/port-setup.md)). |
 | `DualMotorConnection::open(port="", baudrate=19200, slave_id=1)` | → `DualMotorConnection` (dual). |
 | `resolve_port(port="")` | The port-defaulting rule itself: explicit arg, else `$MDROBOT_PORT`, else throws. |
 | `conn->`, `conn.driver()`, `conn.client()` | Access the driver / client held by a connection. |
@@ -151,7 +153,7 @@ mdrobot::SingleMotorDriver drv(client);   // drv references client; keep both al
 | `set_slow_start(int channel, double s, double full_scale_s=15.0)` … | `void` / `double` | Per-channel ramp setters & getters. |
 
 ```cpp
-auto d = mdrobot::DualMotorConnection::open("/dev/ttyUSB0");
+auto d = mdrobot::DualMotorConnection::open();
 d->enable();
 d->set_velocities(30, -30);
 std::cout << d->get_current(1) << " " << d->get_current(2) << " A\n";
@@ -174,7 +176,7 @@ d->torque_off_both();
 PIDs/commands are constants in `mdrobot_cpp/registers.hpp`, e.g.
 `client.write_register(mdrobot::PID_USE_LIMIT_SW, 0);`. A full table of register
 numbers, command codes and status bits is in the
-**[Register reference](registers.md)**. Here **PID** means *parameter ID* (a register
+**[Register reference](reference/registers.md)**. Here **PID** means *parameter ID* (a register
 address), not a control gain.
 
 ## Data types
@@ -216,7 +218,7 @@ std::runtime_error
 
 ```cpp
 try {
-  auto s = mdrobot::SingleMotorConnection::open("/dev/ttyUSB0");
+  auto s = mdrobot::SingleMotorConnection::open();
   s->enable();
   s->set_velocity(40);
 } catch (const mdrobot::IncompleteResponseError&) {

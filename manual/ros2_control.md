@@ -79,7 +79,7 @@ robot description.
 | param | default | meaning |
 |---|---|---|
 | `device_type` | (from joint count) | `single`, `dual`, or `twin`. Blank infers `single`/`dual` from the joint count; **`twin` must be set explicitly** (twin and dual both have 2 joints, so it cannot be inferred). |
-| `port` | `/dev/ttyUSB0` | serial port (set in the yaml; or override with the `port:=` launch arg). The plugin takes it from the yaml, not from `MDROBOT_PORT` (always set it here); for a re-plug-proof name see [Port setup](port-setup.md) |
+| `port` | `/dev/ttyUSB0` | serial port (set in the yaml; or override with the `port:=` launch arg). The plugin takes it from the yaml, not from `MDROBOT_PORT` (always set it here); for a re-plug-proof name see [Port setup](setup/port-setup.md) |
 | `baudrate` | `19200` | |
 | `motor_id` | `1` | Modbus slave id. For **twin** each controller has its own (`motor_id_L` / `motor_id_R` in the yaml — see below), not one shared `motor_id`. |
 | `use_limit_sw` | `-1` | `-1` leave as-is, `0` disable, `1` enable (some controllers need `0` for serial drive) |

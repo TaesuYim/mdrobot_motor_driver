@@ -62,7 +62,7 @@ def main() -> int:
     ap.add_argument("--id", type=int, default=1)
     args = ap.parse_args()
     if not args.port:
-        ap.error("--port is required (or set MDROBOT_PORT — see manual/port-setup.md)")
+        ap.error("--port is required (or set MDROBOT_PORT — see manual/setup/port-setup.md)")
 
     dual = args.type == "dual"
     cls = DualMotorDriver if dual else SingleMotorDriver

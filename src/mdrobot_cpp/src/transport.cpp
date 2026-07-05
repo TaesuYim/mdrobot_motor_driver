@@ -166,7 +166,7 @@ std::string resolve_port(const std::string& port) {
   throw std::invalid_argument(
       "no serial port given and the MDROBOT_PORT environment variable is not set — "
       "pass a port (e.g. open(\"/dev/ttyUSB0\")) or set it once: "
-      "export MDROBOT_PORT=/dev/ttyUSB0 (see manual/port-setup.md)");
+      "export MDROBOT_PORT=/dev/ttyUSB0 (see manual/setup/port-setup.md)");
 }
 
 }  // namespace mdrobot

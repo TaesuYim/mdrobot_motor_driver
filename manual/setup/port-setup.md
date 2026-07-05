@@ -48,7 +48,9 @@ ls -l /dev/mdrobot          # -> symlink to the current ttyUSBn
 ```
 
 Now use `/dev/mdrobot` everywhere: `SingleMotorDriver.open("/dev/mdrobot")`,
-`port: /dev/mdrobot` in the ROS yaml files, and so on.
+`port: /dev/mdrobot` in the ROS yaml files, and so on. To also make the no-arg
+`open()` used throughout the library manuals work, combine with Option 2:
+`export MDROBOT_PORT=/dev/mdrobot` in `~/.bashrc`.
 
 > `MODE="0666"` makes the device world-read/writable, which also removes the
 > `dialout` problem. If you prefer group-based access, use
@@ -57,7 +59,7 @@ Now use `/dev/mdrobot` everywhere: `SingleMotorDriver.open("/dev/mdrobot")`,
 
 ## Option 2 — `MDROBOT_PORT`: a default port for the libraries
 
-The Python and C++ libraries (and the [`examples/`](../examples/) scripts) fall
+The Python and C++ libraries (and the [`examples/`](../../examples/) scripts) fall
 back to the **`MDROBOT_PORT`** environment variable when no port is given. Set
 it once — e.g. in `~/.bashrc` — and drop the port from your code entirely:
 

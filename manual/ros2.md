@@ -52,7 +52,7 @@ ros2 run mdrobot_ros2_driver motor_driver_node --ros-args --params-file config/s
 
 | Parameter | Default | Description |
 |---|---|---|
-| `port` | `/dev/ttyUSB0` | serial device — the node takes it from this yaml, not from `MDROBOT_PORT` (always set it here); for a re-plug-proof name see [Port setup](port-setup.md) |
+| `port` | `/dev/ttyUSB0` | serial device — the node takes it from this yaml, not from `MDROBOT_PORT` (always set it here); for a re-plug-proof name see [Port setup](setup/port-setup.md) |
 | `baudrate` | `19200` | serial baud rate |
 | `motor_id` | `1` | Modbus slave ID |
 | `device_type` | `single` | `single` or `dual` |

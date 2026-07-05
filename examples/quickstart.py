@@ -12,7 +12,7 @@ Usage:
     # low-speed drive (the motor WILL turn!)
     python3 examples/quickstart.py --port /dev/ttyUSB0 --type single --drive --rpm 40
 
-    # --port can be omitted once MDROBOT_PORT is set (see manual/port-setup.md):
+    # --port can be omitted once MDROBOT_PORT is set (see manual/setup/port-setup.md):
     export MDROBOT_PORT=/dev/ttyUSB0
     python3 examples/quickstart.py --type single
 """
@@ -78,7 +78,7 @@ def main() -> int:
     ap.add_argument("--hold", type=float, default=1.5)
     args = ap.parse_args()
     if not args.port:
-        ap.error("--port is required (or set MDROBOT_PORT — see manual/port-setup.md)")
+        ap.error("--port is required (or set MDROBOT_PORT — see manual/setup/port-setup.md)")
 
     dual = args.type == "dual"
     cls = DualMotorDriver if dual else SingleMotorDriver
