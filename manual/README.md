@@ -5,14 +5,15 @@ from the plain Python or C++ library, the ROS 2 node, or `ros2_control`.
 
 ## Read in this order
 
-Do step **0** first (it applies to every interface), then pick the interface you
-actually use — the four manuals are independent of each other, ordered
-low-level → high-level:
+Pick the interface you actually use — the four manuals are independent of each
+other, ordered low-level → high-level. Pass your serial port directly
+(`open("/dev/ttyUSB0")`, or `port:` in the ROS yaml); **[Port setup](setup/port-setup.md)
+is optional** — a convenience for not retyping the port (a udev fixed name and/or the
+`MDROBOT_PORT` default).
 
 | # | Page | Use it for |
 |---|---|---|
-| **0** | **[Port setup](setup/port-setup.md)** | **Once per machine.** Give the RS485 adapter a permanent name + permissions (udev rule) and/or set the `MDROBOT_PORT` default port. The library manuals write `open()` with no port — that form needs `MDROBOT_PORT` set; udev-only users pass their fixed name instead (e.g. `open("/dev/mdrobot")`). |
-| 1 | **[Python library](python.md)** | `mdrobot` — connect, read, drive, position control, slow ramps, raw registers, unit conversion, **full API reference (tables)**, error handling. Worth skimming even if you only use ROS 2 — the first-drive checklist lives here. |
+| 1 | **[Python library](python.md)** | `mdrobot` — connect, read, drive, position control, slow ramps, raw registers, unit conversion, **full API reference (tables)**, error handling. Worth skimming even if you only use ROS 2 — the [first-drive checklist](python.md#first-drive-checklist) lives here. |
 | 2 | **[C++ library](cpp.md)** | `mdrobot_cpp` — same API in C++ (`*Connection::open` factory, object lifetime, **API reference tables**, error handling). |
 | 3 | **[ROS 2 node](ros2.md)** | `mdrobot_ros2_driver` — build, launch, parameters, topics/services, `joint_states` units, shutdown, troubleshooting. |
 | 4 | **[ros2_control (C++)](ros2_control.md)** | `mdrobot_ros2_control` — the `SystemInterface` plugin: URDF parameters, state/command interfaces, units, controllers, and **twin mode** (two single-channel controllers on one bus). |
@@ -39,7 +40,7 @@ alarm** — keep clear on the first power-up.
 
 For the full ordered first-drive sequence (comms check → `ENC_PPR` → `USE_LIMIT_SW` →
 `enable()` → low rpm + dwell + a stop in reach), see the
-[Python manual first-drive checklist](python.md#quick-start).
+[Python manual first-drive checklist](python.md#first-drive-checklist).
 
 **Stop input:** for serial-only control, set `USE_LIMIT_SW (17) = 0`. To add a hardware
 stop switch on the CTRL connector, set `USE_LIMIT_SW = 1` and wire it to **pin 8

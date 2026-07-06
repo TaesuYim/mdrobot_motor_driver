@@ -47,6 +47,7 @@ PIDs the driver defines; the controller has more.
 | `PID_VOLT_IN` | 143 | R | Supply voltage, 0.1 V units (`get_voltage`) |
 | `PID_RETURN_TYPE` | 149 | R/W | Return type after a command |
 | `PID_TAR_VEL` | 155 | R/W | Fixed target speed, rpm |
+| `PID_ENC_PPR` | 156 | R/W | Encoder pulses-per-rev; **0 = no encoder** (hall closed-loop). Recent firmware ships in encoder mode → set `0` for hall drive |
 | `PID_REF_RPM` | 166 | R | Reference velocity, signed rpm |
 | `PID_PNT_TQ_OFF` | 174 | C | Free/tq-off both motors (DL motor1, DH motor2) |
 | `PID_PNT_BRAKE` | 175 | C | Electric brake both motors (DL motor1, DH motor2) |

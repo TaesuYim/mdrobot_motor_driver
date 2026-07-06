@@ -26,11 +26,11 @@ Unit tests (golden Modbus vectors, decoders, units):
 ## Quick start
 
 The `*Connection::open()` factories build transport + client + driver in one call
-and close the port on destruction (RAII) — the easiest entry point. With the port
-argument omitted, the `MDROBOT_PORT` environment variable is used (an explicit
-port always wins; neither set → `std::invalid_argument`). **The examples below
-assume `MDROBOT_PORT` is set** ([Port setup](setup/port-setup.md)) — otherwise
-pass the port explicitly, e.g. `open("/dev/ttyUSB0")` or your udev name:
+and close the port on destruction (RAII) — the easiest entry point. **Pass your
+serial port**, e.g. `open("/dev/ttyUSB0")` (the examples below do). *Optional:* with
+the port argument omitted it falls back to the `MDROBOT_PORT` environment variable
+(an explicit port always wins; neither set → `std::invalid_argument`) — see
+[Port setup](setup/port-setup.md):
 
 ```cpp
 #include "mdrobot_cpp/device.hpp"
@@ -39,7 +39,7 @@ pass the port explicitly, e.g. `open("/dev/ttyUSB0")` or your udev name:
 #include <chrono>            // std::chrono::seconds (for the dwell below)
 
 // single-channel — read-only first (no motion): confirm comms
-auto s = mdrobot::SingleMotorConnection::open();  // port from $MDROBOT_PORT; 19200, id 1
+auto s = mdrobot::SingleMotorConnection::open("/dev/ttyUSB0");  // your serial port; 19200, id 1
 std::cout << s->get_version() << " " << s->get_voltage() << " V\n";
 
 // drive (the motor turns)
@@ -51,7 +51,7 @@ s->stop();
 s->torque_off();             // NOTE: destruction closes the port but does NOT stop a moving motor
 
 // dual-channel
-auto d = mdrobot::DualMotorConnection::open();
+auto d = mdrobot::DualMotorConnection::open("/dev/ttyUSB0");
 d->enable();
 d->set_velocities(40, 40);
 std::this_thread::sleep_for(std::chrono::seconds(2));  // hold so they actually turn
@@ -153,7 +153,7 @@ mdrobot::SingleMotorDriver drv(client);   // drv references client; keep both al
 | `set_slow_start(int channel, double s, double full_scale_s=15.0)` … | `void` / `double` | Per-channel ramp setters & getters. |
 
 ```cpp
-auto d = mdrobot::DualMotorConnection::open();
+auto d = mdrobot::DualMotorConnection::open("/dev/ttyUSB0");
 d->enable();
 d->set_velocities(30, -30);
 std::cout << d->get_current(1) << " " << d->get_current(2) << " A\n";
@@ -218,7 +218,7 @@ std::runtime_error
 
 ```cpp
 try {
-  auto s = mdrobot::SingleMotorConnection::open();
+  auto s = mdrobot::SingleMotorConnection::open("/dev/ttyUSB0");
   s->enable();
   s->set_velocity(40);
 } catch (const mdrobot::IncompleteResponseError&) {
@@ -251,4 +251,4 @@ fallback is to **cut power / e-stop**.
   [README → Hardware setup](README.md#hardware-setup).
 - **First drive, in order:** read-only comms check → (no encoder) `ENC_PPR (156) = 0`
   → (serial-only) `USE_LIMIT_SW (17) = 0` → `enable()` → low rpm + a dwell + a stop in
-  reach. See the [Python manual checklist](python.md#quick-start).
+  reach. See the [Python manual checklist](python.md#first-drive-checklist).

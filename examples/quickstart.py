@@ -5,22 +5,23 @@ Read-only by default (the motor does not move): prints version / voltage /
 status / monitor. Pass --drive to spin the motor briefly at low speed
 (SAFETY: keep an e-stop ready, low speed, short).
 
-Usage:
+Set your serial port in PORT below (or pass --port to override):
     # read-only
-    python3 examples/quickstart.py --port /dev/ttyUSB0 --type single
-    python3 examples/quickstart.py --port /dev/ttyUSB0 --type dual
-    # low-speed drive (the motor WILL turn!)
-    python3 examples/quickstart.py --port /dev/ttyUSB0 --type single --drive --rpm 40
-
-    # --port can be omitted once MDROBOT_PORT is set (see manual/setup/port-setup.md):
-    export MDROBOT_PORT=/dev/ttyUSB0
     python3 examples/quickstart.py --type single
+    python3 examples/quickstart.py --type dual
+    # low-speed drive (the motor WILL turn!)
+    python3 examples/quickstart.py --type single --drive --rpm 40
+    # a different port without editing this file:
+    python3 examples/quickstart.py --type single --port /dev/ttyUSB1
+
+Optional: to avoid editing/passing the port every time, set MDROBOT_PORT (then
+pass --port "$MDROBOT_PORT") or give the adapter a fixed udev name — see
+manual/setup/port-setup.md.
 """
 
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 import time
 from pathlib import Path
@@ -30,6 +31,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src" / "mdrobot"))
 
 from mdrobot import DualMotorDriver, SingleMotorDriver  # noqa: E402
+
+# ── Edit this to your serial port ───────────────────────────────────────────
+# Linux: /dev/ttyUSB0 (or a /dev/serial/by-id/... path) · Windows: COM3 ·
+# macOS: /dev/cu.usbserial-*. Or pass --port on the command line.
+PORT = "/dev/ttyUSB0"
 
 
 def show(driver, dual: bool) -> None:
@@ -68,8 +74,8 @@ def drive(driver, dual: bool, rpm: int, hold: float) -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="mdrobot minimal example")
-    ap.add_argument("--port", default=os.environ.get("MDROBOT_PORT"),
-                    help="serial port (default: $MDROBOT_PORT)")
+    ap.add_argument("--port", default=PORT,
+                    help=f"serial port (default: {PORT} — edit PORT at the top of this file)")
     ap.add_argument("--type", choices=["single", "dual"], required=True)
     ap.add_argument("--baud", type=int, default=19200)
     ap.add_argument("--id", type=int, default=1)
@@ -77,8 +83,6 @@ def main() -> int:
     ap.add_argument("--rpm", type=int, default=40)
     ap.add_argument("--hold", type=float, default=1.5)
     args = ap.parse_args()
-    if not args.port:
-        ap.error("--port is required (or set MDROBOT_PORT — see manual/setup/port-setup.md)")
 
     dual = args.type == "dual"
     cls = DualMotorDriver if dual else SingleMotorDriver

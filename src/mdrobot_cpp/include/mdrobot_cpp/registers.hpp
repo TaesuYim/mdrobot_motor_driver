@@ -37,6 +37,7 @@ constexpr uint16_t PID_TQ_CMD        = 140;
 constexpr uint16_t PID_VOLT_IN       = 143;
 constexpr uint16_t PID_RETURN_TYPE   = 149;
 constexpr uint16_t PID_TAR_VEL       = 155;
+constexpr uint16_t PID_ENC_PPR       = 156;  // 0 = no encoder (hall closed-loop); recent fw ships in encoder mode
 constexpr uint16_t PID_REF_RPM       = 166;
 constexpr uint16_t PID_PNT_TQ_OFF    = 174;
 constexpr uint16_t PID_PNT_BRAKE     = 175;

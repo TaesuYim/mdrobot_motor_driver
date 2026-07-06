@@ -14,39 +14,46 @@ pip install -e 'src/mdrobot[serial]'    # [serial] installs pyserial
 python -c "import mdrobot; print(mdrobot.__file__)"   # verify
 ```
 
+> On Ubuntu 24.04+ system Python, `pip install` may fail with
+> *externally-managed-environment* (PEP 668). Install into a virtualenv
+> (`python3 -m venv .venv && source .venv/bin/activate`, then `pip install`) — or,
+> to use the system Python anyway, add `--break-system-packages`.
+
 ## Connect
 
-1. Wire the RS485 (USB-serial) adapter to the controller's RS485 A/B, and tie the
-   adapter and controller **GND** together. Default link settings: **19200 8N1**,
-   controller ID **1**.
+1. **Wire the RS485 link.** Complete the motor, power and (if fitted) hall/encoder
+   wiring per your controller's own manual first — this page covers only the serial
+   link. Connect the RS485 (USB-serial) adapter to the controller's RS485 **A/B**, and
+   tie the adapter and controller **GND** together. Default link settings:
+   **19200 8N1**, controller ID **1**.
 2. **Find the port.** The adapter usually enumerates as `/dev/ttyUSB0`; list the
    candidates and watch which one appears when you plug it in:
    ```bash
    ls /dev/serial/by-id/        # stable per-adapter names (survive re-enumeration)
    ls /dev/ttyUSB* /dev/ttyACM*
-   dmesg | grep -i tty | tail   # which device attached just now
+   sudo dmesg | grep -i tty | tail   # which device attached just now (sudo: dmesg is restricted on stock Ubuntu)
    ```
    Prefer the `/dev/serial/by-id/...` path when you run more than one adapter.
-3. **Set the port up once** — follow **[Port setup](setup/port-setup.md)**: a udev
-   rule gives the adapter a permanent name *and* permissions (no more
-   `ttyUSB0`→`ttyUSB1`, no more `chmod`), and `export MDROBOT_PORT=...` makes
-   `open()` work with no port argument at all. **The rest of this manual assumes
-   `MDROBOT_PORT` is set and writes `open()`** — udev-only? Pass your fixed name
-   (e.g. `open("/dev/mdrobot")`). Skipped it all? Pass the raw port (e.g.
-   `open("/dev/ttyUSB0")`) and fix permissions the quick way:
+3. **Fix permissions, then pass the port to `open()`.** `/dev/ttyUSB*` belongs to the
+   `dialout` group, so add yourself once (log out / back in to apply):
    ```bash
    sudo usermod -aG dialout $USER   # then log out / back in
    sudo chmod a+rw /dev/ttyUSB0     # or, temporarily
    ```
-   On **Windows** the port is `COMx` (e.g. `COM3`); on **macOS** it is
-   `/dev/cu.usbserial-*`. `MDROBOT_PORT` works on every OS; the udev rule and the
-   permission commands are Linux-only.
+   Then pass the port string to `open()` — **this manual writes `open("/dev/ttyUSB0")`**;
+   substitute your own path. On **Windows** the port is `COMx` (e.g. `COM3`); on
+   **macOS** it is `/dev/cu.usbserial-*`.
+
+   *Optional — so you stop retyping the port:* a udev rule can give the adapter a
+   permanent name *and* permissions (no more `ttyUSB0`→`ttyUSB1`, no more `chmod`), and
+   `export MDROBOT_PORT=...` lets `open()` take the port with **no** argument. Both are
+   in **[Port setup](setup/port-setup.md)** — entirely optional.
 4. A controller is **dual-channel** if it answers the dual-only monitor register
    `PID_PNT_MONITOR (216)`, otherwise it is **single-channel**:
    ```python
    from mdrobot import DualMotorDriver, registers as reg
    from mdrobot.exceptions import MdrobotError
-   with DualMotorDriver.open() as d:      # port from $MDROBOT_PORT (step 3)
+   with DualMotorDriver.open("/dev/ttyUSB0") as d:
        try:
            d.client.read_registers(reg.PID_PNT_MONITOR, 7)
            print("dual")
@@ -61,31 +68,46 @@ python -c "import mdrobot; print(mdrobot.__file__)"   # verify
 > a short, low-speed (19200) bus. Per-model verification status is in
 > [Tested drivers & firmware](../README.md#tested-drivers--firmware).
 
+## First-drive checklist
+
+Run these once, **in order, before the first drive**. Skip a step only if it clearly
+does not apply to your controller (`reg` is `from mdrobot import registers as reg`):
+
+1. **Comms, read-only** — `print(d.get_version(), d.get_voltage())` (no motion).
+2. **No encoder?** `d.client.write_register(reg.PID_ENC_PPR, 0)` (`ENC_PPR (156) = 0`).
+   Recent firmware (e.g. MD400 v8.6) ships in encoder mode and will **lurch ~0.6 s then
+   alarm** on the first command until this is set once. *(The motor may move briefly
+   here — keep clear.)*
+3. **Serial-only drive?** Some controllers need
+   `d.client.write_register(reg.PID_USE_LIMIT_SW, 0)` (`USE_LIMIT_SW (17) = 0`).
+4. **Arm motion** — `d.enable()` (required; otherwise velocity is echoed but the motor
+   does not turn).
+5. **Drive low + dwell + keep a stop in reach** — low rpm, hold ≥ ~1.5 s to see real
+   motion, then `stop()`. Have an e-stop / power cut ready.
+
 ## Quick start
 
 ```python
 from mdrobot import SingleMotorDriver, DualMotorDriver
 
-# --- read only (never moves the motor) ---
-with SingleMotorDriver.open() as d:      # port from $MDROBOT_PORT — or open("/dev/ttyUSB0")
+# --- read only (never moves the motor) — always start here ---
+with SingleMotorDriver.open("/dev/ttyUSB0") as d:   # your serial port (see Connect)
     print(d.get_version(), d.get_voltage(), "V")
     print(d.get_status().active)     # active alarm/status bit names
     print(d.read_monitor())          # speed / current / position
 
-# --- single-channel drive ---
+# --- single-channel drive (low speed; do the first-drive checklist above first) ---
 import time
-with SingleMotorDriver.open() as d:
+with SingleMotorDriver.open("/dev/ttyUSB0") as d:
     d.enable()                       # REQUIRED before motion
     try:
         d.set_velocity(40)           # signed rpm; + = CCW
         time.sleep(2.0)              # hold ~2 s so you actually SEE it turn (no dwell = a twitch)
     finally:
         d.stop(); d.torque_off()     # always stop — even on Ctrl-C / an exception
-    d.reset_position()
-    d.move_to(80, speed=60); d.wait_in_position()   # absolute move (counts)
 
 # --- dual-channel drive ---
-with DualMotorDriver.open() as d:
+with DualMotorDriver.open("/dev/ttyUSB0") as d:
     d.enable()
     try:
         d.set_velocities(40, 40)     # motor 1, motor 2
@@ -102,20 +124,8 @@ with DualMotorDriver.open() as d:
 > (single and dual alike). Some dual controllers start turning **~1 s after** the
 > command — don't send `0` immediately or you'll miss the motion.
 
-> **Before the first drive — checklist.** Run these once, in order; each line is one
-> call. Skip a step only if it clearly does not apply to your controller:
->
-> 1. **Comms, read-only** — `print(d.get_version(), d.get_voltage())` (no motion).
-> 2. **No encoder?** `d.client.write_register(156, 0)` (`ENC_PPR = 0`). Recent firmware
->    (e.g. MD400 v8.6) ships in encoder mode and will **lurch ~0.6 s then alarm** on
->    the first command until this is set once. *(The motor may move briefly here — keep
->    clear.)*
-> 3. **Serial-only drive?** Some controllers need `d.client.write_register(17, 0)`
->    (`USE_LIMIT_SW = 0`).
-> 4. **Arm motion** — `d.enable()` (required; otherwise velocity is echoed but the
->    motor does not turn).
-> 5. **Drive low + dwell + keep a stop in reach** — low rpm, hold ≥ ~1.5 s to see real
->    motion, then `stop()`. Have an e-stop / power cut ready.
+**Position control** (absolute / relative moves) is a separate step — see
+[`move_to` / `move_by` in the API reference](#singlemotordriver) below.
 
 ---
 
@@ -140,7 +150,7 @@ count (`+` = CCW). `speed` for position moves is the max rpm magnitude.
 | `reset_alarm()` | `None` | Clear a latched alarm. |
 
 ```python
-with SingleMotorDriver.open(slave_id=1) as d:   # port from $MDROBOT_PORT
+with SingleMotorDriver.open("/dev/ttyUSB0", slave_id=1) as d:
     if d.ping():
         d.enable()
 ```
@@ -216,7 +226,7 @@ while not d.get_in_position():
 | `move_by_both(delta1, delta2, speed1=100, speed2=None)` | `None` | Relative move both (counts). |
 
 ```python
-with DualMotorDriver.open() as d:
+with DualMotorDriver.open("/dev/ttyUSB0") as d:
     d.enable()
     d.set_velocities(30, -30)            # spin opposite
     print(d.get_current(1), d.get_current(2))   # A
@@ -331,7 +341,7 @@ from mdrobot import SingleMotorDriver
 from mdrobot.exceptions import MdrobotError, IncompleteResponseError
 
 try:
-    with SingleMotorDriver.open() as d:
+    with SingleMotorDriver.open("/dev/ttyUSB0") as d:
         d.enable()
         d.set_velocity(40)
 except IncompleteResponseError:
@@ -356,7 +366,7 @@ import time
 from mdrobot import SingleMotorDriver
 from mdrobot.exceptions import MdrobotError
 
-d = SingleMotorDriver.open()
+d = SingleMotorDriver.open("/dev/ttyUSB0")
 try:
     d.enable(); d.set_velocity(40); time.sleep(2.0)
 except (MdrobotError, KeyboardInterrupt):

@@ -25,16 +25,22 @@ source install/setup.bash
 ## Configuration & run
 
 All options are set in a parameter YAML file, **not** on the command line. Each
-launch file loads its defaults from `config/`:
-- `config/single.yaml` (single-channel) · `config/dual.yaml` (dual-channel)
+launch file loads its defaults from the **installed** copy under `install/`:
+- `src/mdrobot_ros2_driver/config/single.yaml` (single-channel) ·
+  `src/mdrobot_ros2_driver/config/dual.yaml` (dual-channel)
 
-Edit that file (port, counts_per_rev, use_limit_sw, ...) and launch — no extra
-options needed:
+Edit that file (port, counts_per_rev, use_limit_sw, ...), then launch:
 
 ```bash
 ros2 launch mdrobot_ros2_driver single.launch.py
 ros2 launch mdrobot_ros2_driver dual.launch.py
 ```
+
+> **The launch reads the installed copy, not your `src/` edit.** After editing the
+> src yaml, **re-run `colcon build`** (it re-copies the config into `install/`) before
+> launching — or build once with `colcon build --symlink-install` so later src edits
+> apply live, or point straight at your file with `config:=/absolute/path.yaml`
+> (below). Otherwise the launch silently keeps the old settings.
 
 Use your own parameter file, or set a namespace:
 
@@ -42,10 +48,12 @@ Use your own parameter file, or set a namespace:
 ros2 launch mdrobot_ros2_driver single.launch.py config:=/path/to/my.yaml namespace:=robot1
 ```
 
-To run the node directly (no launch file), pass the same YAML with `--params-file`:
+To run the node directly (no launch file), pass the same YAML with `--params-file`
+(use a full path — a bare `config/single.yaml` does not exist at the workspace root):
 
 ```bash
-ros2 run mdrobot_ros2_driver motor_driver_node --ros-args --params-file config/single.yaml
+ros2 run mdrobot_ros2_driver motor_driver_node --ros-args \
+  --params-file src/mdrobot_ros2_driver/config/single.yaml
 ```
 
 ## Parameters
@@ -56,7 +64,7 @@ ros2 run mdrobot_ros2_driver motor_driver_node --ros-args --params-file config/s
 | `baudrate` | `19200` | serial baud rate |
 | `motor_id` | `1` | Modbus slave ID |
 | `device_type` | `single` | `single` or `dual` |
-| `command_timeout` | `0.5` | seconds; auto-stop if no new velocity command arrives |
+| `command_timeout` | `0.5` | seconds; auto-stop if no new velocity command arrives (**`0` disables**) |
 | `publish_rate` | `20.0` | Hz; `joint_states` publish rate. A dual cycle is ~50 ms on a 19200 bus, so keep dual at **≤ 15 Hz** (single can go higher); higher rates overrun the serial link. |
 | `diag_rate` | `2.0` | Hz; diagnostics publish rate |
 | `position_max_rpm` | `100` | speed cap for position moves |
@@ -84,6 +92,11 @@ ros2 service call /mdrobot_motor_driver/stop std_srvs/srv/Trigger
 
 > A wrong-length array is ignored with a warning (single needs `[rpm]`, dual needs
 > `[rpm1, rpm2]`).
+
+> **`pub -1` sends the command once**, so after `command_timeout` (default 0.5 s) the
+> watchdog auto-stops the motor — it turns for ~0.5 s, then a "command_timeout
+> exceeded" warning prints. For continuous motion publish at a rate
+> (`ros2 topic pub -r 10 ...`), raise `command_timeout`, or set it to `0` to disable.
 
 Topic/service names sit under the node name (and namespace if you set one);
 prefix accordingly.
@@ -152,4 +165,7 @@ torque-off and then exits. Notes:
 7. Alarm bit set? Call `~/reset_alarm`.
 8. Unstable readbacks may indicate a serial session desync (some adapters); the
    node cross-checks the version register on connect.
+9. **Turns ~0.5 s then stops (no alarm)?** That is the `command_timeout` watchdog —
+   `pub -1` sent a single command. Publish at a rate (`-r 10`), raise `command_timeout`,
+   or set it to `0`. A "command_timeout exceeded" warning is logged when it fires.
 

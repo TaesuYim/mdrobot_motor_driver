@@ -41,6 +41,8 @@ PID_VOLT_IN = 143          # R  supply voltage, 0.1 V units; get_voltage
 PID_RETURN_TYPE = 149      # R/W return type after command
 PID_TAR_VEL = 155          # R/W fixed target speed, rpm.
                            #    verified on hardware: NOT the speed source for START_STOP drive -> use PID_COM_TAR_SPEED.
+PID_ENC_PPR = 156          # R/W encoder pulses-per-rev; 0 = no encoder (hall closed-loop).
+                           #    recent firmware (e.g. MD400 v8.6) ships in encoder mode -> set 0 for hall drive.
 PID_REF_RPM = 166          # R  reference velocity, signed rpm
 PID_PNT_TQ_OFF = 174       # C  free/tq-off for both motors (DL motor1, DH motor2)
 PID_PNT_BRAKE = 175        # C  electric brake for both motors (DL motor1, DH motor2)

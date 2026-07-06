@@ -13,10 +13,13 @@ Both are independent of the Python packages — build only these if C++ is all y
 ## Build
 
 ```bash
+rosdep install --from-paths src --ignore-src -r -y   # pulls ros2_control, ros2_controllers, ...
 colcon build --packages-select mdrobot_cpp mdrobot_ros2_control
 source install/setup.bash
 ```
 
+The spawned controllers need `ros2_controllers` (e.g.
+`sudo apt install ros-jazzy-ros2-controllers`) — the `rosdep` step above installs it.
 `mdrobot_cpp` ships gtest unit tests (golden Modbus vectors, decoders, unit
 conversion). Run them with `colcon test --packages-select mdrobot_cpp`.
 
@@ -229,8 +232,10 @@ from `twin_controllers.yaml`; it is shown here only so you can see the joint lay
 
 `bringup.launch.py` starts `robot_state_publisher`, the `controller_manager`, and
 spawns the controllers from `config/<device_type>_controllers.yaml`. **Edit that
-file** for your robot — both the connection settings (`mdrobot_hardware` section)
-and the controller params live there:
+file** (`src/mdrobot_ros2_control/config/<device_type>_controllers.yaml`) for your
+robot — both the connection settings (`mdrobot_hardware` section) and the controller
+params live there. As with the node, the launch reads the **installed** copy, so
+**re-run `colcon build` after editing** (or build once with `--symlink-install`):
 
 - **single** → `joint_state_broadcaster` + `velocity_cont`
   (`forward_command_controller`, commands `/velocity_cont/commands`).
@@ -243,13 +248,19 @@ and the controller params live there:
 
 ```bash
 # set port / motor ids / counts_per_rev in config/<type>_controllers.yaml first
+# (then re-run colcon build — the launch reads the installed copy)
 ros2 launch mdrobot_ros2_control bringup.launch.py device_type:=single
 ros2 launch mdrobot_ros2_control bringup.launch.py device_type:=dual
 ros2 launch mdrobot_ros2_control bringup.launch.py device_type:=twin
 # (optional) override the port without editing the yaml:
 ros2 launch mdrobot_ros2_control bringup.launch.py device_type:=twin port:=/dev/ttyUSB1
 
-# drive (dual or twin): linear.x in m/s -> wheels
+# drive SINGLE: forward_command_controller takes an array on /velocity_cont/commands.
+# UNITS follow counts_per_rev: the shipped single_controllers.yaml sets it > 0, so the
+# command is rad/s, NOT rpm. 4.0 rad/s ~ 38 rpm — do NOT paste the node's rpm value here.
+ros2 topic pub /velocity_cont/commands std_msgs/msg/Float64MultiArray "{data: [4.0]}"
+
+# drive DUAL or TWIN: linear.x in m/s -> wheels
 ros2 topic pub /diff_cont/cmd_vel geometry_msgs/msg/TwistStamped \
     "{twist: {linear: {x: 0.1}}}"
 ```

@@ -1,11 +1,19 @@
-# Serial port setup — set the port once
+# Serial port setup (optional) — stop retyping the port
 
-Every layer of this driver needs one piece of information: which serial device
-your RS485 adapter is. This page shows how to configure that **once**, so you
-stop typing `/dev/ttyUSB0` into every command — and stop chasing it when it
-silently becomes `ttyUSB1` after a re-plug.
+**You do not need this page to get started** — just pass your port to `open()`
+(`open("/dev/ttyUSB0")`) or set it in the ROS yaml. This page is a convenience: set
+the port up **once** so you stop typing `/dev/ttyUSB0` into every command — and stop
+chasing it when it silently becomes `ttyUSB1` after a re-plug.
 
-Two independent problems get solved here:
+**Which option do I want?**
+
+| If you… | do this |
+|---|---|
+| just want to run it now | pass the port directly — `open("/dev/ttyUSB0")`, or `port:` in the ROS yaml. You can skip this page. |
+| are tired of retyping, or it keeps moving | **Option 1** (udev fixed name) or **Option 2** (`MDROBOT_PORT`) below |
+| use ROS 2 | set `port:` in the yaml regardless (the ROS layers do not read `MDROBOT_PORT`) |
+
+Two independent problems this page can solve:
 
 1. **The number drifts.** `/dev/ttyUSB0` is assigned in plug-in order; after a
    re-plug or reboot the same adapter can come back as `ttyUSB1`.
@@ -25,6 +33,17 @@ First identify the adapter (with it plugged in):
 ```bash
 udevadm info -a -n /dev/ttyUSB0 | grep -E 'idVendor|idProduct|{serial}' | head -6
 ```
+
+This walks **up** the USB tree, so it prints several blocks; the **first (topmost)**
+one is the adapter itself — take its values and ignore the parent hubs below it:
+
+```
+    ATTRS{idVendor}=="1a86"        # <- the adapter (topmost block): a CH340
+    ATTRS{idProduct}=="7523"       #    CH340 has no serial -> match by idVendor/idProduct
+    ATTRS{idVendor}=="1d6b"        # a parent USB hub — ignore this and everything below
+```
+
+(An FTDI adapter also prints `ATTRS{serial}=="…"` in its top block — pin that.)
 
 Then create `/etc/udev/rules.d/99-mdrobot.rules` with a rule matching your
 adapter. For a **CH340** (`1a86:7523`, the common blue adapters):

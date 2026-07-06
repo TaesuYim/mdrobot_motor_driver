@@ -23,16 +23,16 @@ Two methods (you need an independent reference for the number of turns):
 Safety: 'driven' turns the motor. Keep it unloaded, slow, e-stop ready. In
 'manual' the shaft also spins freely.
 
-Usage:
-    python3 examples/calibrate_counts_per_rev.py --port /dev/ttyUSB0 --revs 10
-    python3 examples/calibrate_counts_per_rev.py --port /dev/ttyUSB0 --type dual
-    python3 examples/calibrate_counts_per_rev.py --port /dev/ttyUSB0 --method driven --rpm 30
+Set your serial port in PORT below (or pass --port to override):
+    python3 examples/calibrate_counts_per_rev.py --revs 10
+    python3 examples/calibrate_counts_per_rev.py --type dual
+    python3 examples/calibrate_counts_per_rev.py --method driven --rpm 30
+    python3 examples/calibrate_counts_per_rev.py --port /dev/ttyUSB1   # override
 """
 
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 import time
 from pathlib import Path
@@ -43,6 +43,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src" / "mdrobot"))
 
 from mdrobot import DualMotorDriver, SingleMotorDriver  # noqa: E402
 
+# ── Edit this to your serial port ───────────────────────────────────────────
+# Linux: /dev/ttyUSB0 (or a /dev/serial/by-id/... path) · Windows: COM3 ·
+# macOS: /dev/cu.usbserial-*. Or pass --port on the command line.
+PORT = "/dev/ttyUSB0"
+
 
 def read_positions(driver, dual: bool) -> list[int]:
     if dual:
@@ -52,8 +57,8 @@ def read_positions(driver, dual: bool) -> list[int]:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="counts_per_rev calibration")
-    ap.add_argument("--port", default=os.environ.get("MDROBOT_PORT"),
-                    help="serial port (default: $MDROBOT_PORT)")
+    ap.add_argument("--port", default=PORT,
+                    help=f"serial port (default: {PORT} — edit PORT at the top of this file)")
     ap.add_argument("--type", choices=["single", "dual"], default="single")
     ap.add_argument("--method", choices=["manual", "driven"], default="manual")
     ap.add_argument("--revs", type=float, default=10.0, help="number of revolutions to turn (default 10)")
@@ -61,8 +66,6 @@ def main() -> int:
     ap.add_argument("--baud", type=int, default=19200)
     ap.add_argument("--id", type=int, default=1)
     args = ap.parse_args()
-    if not args.port:
-        ap.error("--port is required (or set MDROBOT_PORT — see manual/setup/port-setup.md)")
 
     dual = args.type == "dual"
     cls = DualMotorDriver if dual else SingleMotorDriver

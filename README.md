@@ -22,7 +22,7 @@ that has actually been tested — see
 > - New here? Start with the [Python quick start](#python-library) — it needs
 >   nothing but `pip` and an RS485 adapter, no ROS 2.
 
-All packages are versioned and released together — current release: **1.1.1**.
+All packages are versioned and released together — current release: **1.1.2**.
 
 The project is a colcon workspace of complementary packages — use only what you need:
 
@@ -83,6 +83,11 @@ cd mdrobot_motor_driver
 pip install -e 'src/mdrobot[serial]'    # editable install; [serial] pulls in pyserial
 ```
 
+> On Ubuntu 24.04+ system Python, `pip install` may fail with
+> *externally-managed-environment* (PEP 668) — use a virtualenv
+> (`python3 -m venv .venv && source .venv/bin/activate`) or add
+> `--break-system-packages`.
+
 Or install directly from GitHub, without cloning:
 
 ```bash
@@ -120,7 +125,7 @@ with DualMotorDriver.open("/dev/ttyUSB0") as d:
         d.stop(); d.torque_off_both()
 ```
 
-> First time? Recent firmware ships in encoder mode — see the [first-drive checklist](manual/python.md#quick-start).
+> First time? Recent firmware ships in encoder mode — see the [first-drive checklist](manual/python.md#first-drive-checklist).
 
 > Tired of typing the port? `export MDROBOT_PORT=/dev/ttyUSB0` once and call
 > `SingleMotorDriver.open()` with no arguments — or give the adapter a permanent
@@ -131,8 +136,9 @@ Low-level register/command access is always available via `d.client` for anythin
 ### ROS 2 node
 
 ```bash
-# set options in config/single.yaml or config/dual.yaml (port, counts_per_rev, ...),
-# then launch — no command-line options needed:
+# set options in config/single.yaml or config/dual.yaml (port, counts_per_rev, ...).
+# launch reads the INSTALLED copy: re-run `colcon build` after editing the src yaml
+# (or build once with `--symlink-install`), then launch:
 ros2 launch mdrobot_ros2_driver single.launch.py   # single-channel
 ros2 launch mdrobot_ros2_driver dual.launch.py     # dual-channel
 
