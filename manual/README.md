@@ -50,56 +50,35 @@ first; an FTDI at its factory setting costs about 30 ms per twin cycle.
 
 ### Stop input (CTRL connector)
 
-`USE_LIMIT_SW (17)` selects what the CTRL inputs do under serial control:
-
-- `0` — they are ignored; only the serial command moves the motor.
-- `1` — they act as **one gate per rotation direction**:
-
-| CTRL pin | Permits | The motor turns that way while |
-|---|---|---|
-| **6** `DIR` | CW = **negative** rpm | pin 6 is shorted to GND |
-| **8** `START/STOP` | CCW = **positive** rpm | pin 8 is shorted to GND |
-
-The inputs are internally pulled up: **shorted to GND = ON, left open = OFF.**
-
-**Wiring a stop switch.** The two directions are gated separately, so the switch has to
-open both. Per controller, tie pin 6 and pin 8 together and take them through one
-**normally-closed** contact to that controller's own GND (pin 1 or 9), and set
-`USE_LIMIT_SW = 1`:
+To stop the motor with a switch on the CTRL connector: set `USE_LIMIT_SW (17) = 1`, then
+wire CTRL **pin 6 and pin 8 together** through one **normally-closed** contact to that
+controller's own GND (pin 1 or 9).
 
 ```
 CTRL  pin 6 (DIR)        ─┬── NC stop contact ── pin 1/9 (GND)
       pin 8 (START/STOP) ─┘
 ```
 
-Closed = both directions permitted. Open = the motor stops whichever way it was turning.
+Closed = the motor runs. Open = it stops.
+
+Both pins are needed because each gates **one direction**: pin 6 permits CW (negative
+rpm), pin 8 permits CCW (positive rpm). The inputs are internally pulled up, so shorted
+to GND = ON and left open = OFF. With `USE_LIMIT_SW = 0` the CTRL inputs are ignored
+altogether and the switch does nothing.
 
 For **twin**, use a **2-pole** NC switch — one pole per controller, each returning to
-that controller's own GND pin. A single-pole switch shared across both units relies on
-the two having a common ground.
+that controller's own GND pin.
 
-**How it behaves.** Measured on two MD400 v8.6 driven with a periodic velocity command:
+Worth knowing:
 
-- Opening the contact stops the motor within one control cycle. The stop is a **coast** —
-  the load's inertia carries it — not a braked stop.
-- Closing it again restarts the motor as soon as the next command arrives, and
-  `ros2_control` sends one every cycle.
-- A switch on **pin 8 alone** stops CCW and leaves CW running: at −30 rpm, holding pin 8
-  open for 3.5 s produced no deceleration. Pin 6 is what covers the other direction.
-  (On a skid-steer the `reverse: true` wheel runs on negative rpm when the base drives
-  forward.)
-- `USE_LIMIT_SW` was seen back at `0` after a power cycle, so set it on every startup —
-  `use_limit_sw: 1` in the `ros2_control` yaml, which writes it on each `on_configure`,
-  or register 17 from the library — and read it back.
-- On MD400 the encoder A/B lines share the CTRL limit inputs, so with an encoder wired
-  `USE_LIMIT_SW = 1` blocks all motion. Encoder mode means `USE_LIMIT_SW = 0` and no
-  CTRL stop.
-- Pin 7 (`RUN/BRAKE`) is overridden by the periodic velocity command, so it does not
-  stop a continuously driven motor.
-
-> Measured here: the gates are per direction (pin 8 stops CCW, does nothing to CW), and
-> pins 6 and 8 both grounded drive both directions. That **pin 6** is the CW gate comes
-> from the controller manual and a user report; it was not isolated in a test.
+- The stop is a **coast**, not a brake, and closing the contact again restarts the motor
+  as soon as the next command arrives — `ros2_control` sends one every cycle.
+- `USE_LIMIT_SW` has been seen back at `0` after a power cycle, so set it at every
+  startup: `use_limit_sw: 1` in the `ros2_control` yaml, or register 17 from the library.
+- On MD400 the encoder A/B lines share these inputs, so with an encoder wired
+  `USE_LIMIT_SW = 1` blocks all motion — encoder mode means no CTRL stop.
+- Pin 7 (`RUN/BRAKE`) is overridden by the periodic velocity command, so it will not stop
+  a continuously driven motor.
 
 **Two controllers on one bus (twin):** to drive a skid-steer base from two
 single-channel controllers (e.g. two MD400) over one RS485 bus, give each a
