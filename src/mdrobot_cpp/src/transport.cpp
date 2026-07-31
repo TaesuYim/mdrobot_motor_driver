@@ -1,6 +1,8 @@
 // Copyright 2026 Taesu Yim. Licensed under Apache-2.0.
 #include "mdrobot_cpp/transport.hpp"
 
+#include "mdrobot_cpp/constants.hpp"
+
 #include <cerrno>
 #include <cstdlib>
 #include <cstring>
@@ -30,8 +32,14 @@ static speed_t to_speed(int baudrate) {
 
 SerialTransport::SerialTransport(const std::string& port, int baudrate,
                                  double timeout, double settle,
-                                 double write_timeout)
-    : port_(port), baudrate_(baudrate), write_timeout_(write_timeout) {
+                                 double write_timeout,
+                                 double inter_frame_delay)
+    : port_(port),
+      baudrate_(baudrate),
+      write_timeout_(write_timeout),
+      inter_frame_delay_(inter_frame_delay < 0.0
+                             ? modbus_inter_frame_delay(baudrate)
+                             : inter_frame_delay) {
   fd_ = ::open(port.c_str(), O_RDWR | O_NOCTTY | O_NONBLOCK);
   if (fd_ < 0) {
     throw std::runtime_error("Failed to open " + port + ": " + std::strerror(errno));
@@ -88,8 +96,22 @@ SerialTransport::~SerialTransport() {
   close();
 }
 
+void SerialTransport::await_inter_frame() {
+  if (inter_frame_delay_ <= 0.0) return;
+  const auto gap = std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+      std::chrono::duration<double>(inter_frame_delay_));
+  const auto ready_at = last_activity_ + gap;
+  const auto now = std::chrono::steady_clock::now();
+  if (now < ready_at) std::this_thread::sleep_for(ready_at - now);
+}
+
+void SerialTransport::mark_activity() {
+  last_activity_ = std::chrono::steady_clock::now();
+}
+
 std::size_t SerialTransport::write(const uint8_t* data, std::size_t len) {
   if (fd_ < 0) throw std::runtime_error("Port not open");
+  await_inter_frame();
   // POSIX write() may transfer fewer bytes than requested — loop until the
   // whole frame is out (or write_timeout elapses), so frames are never split.
   const auto deadline =
@@ -116,6 +138,7 @@ std::size_t SerialTransport::write(const uint8_t* data, std::size_t len) {
     }
   }
   ::tcdrain(fd_);  // wait for transmission to complete (like pyserial flush)
+  mark_activity();
   return total;
 }
 
@@ -123,6 +146,7 @@ std::vector<uint8_t> SerialTransport::read(std::size_t size) {
   if (fd_ < 0) throw std::runtime_error("Port not open");
   std::vector<uint8_t> buf(size);
   ssize_t n = ::read(fd_, buf.data(), size);
+  mark_activity();
   if (n < 0) {
     if (errno == EAGAIN || errno == EWOULDBLOCK) return {};
     throw std::runtime_error("read failed: " + std::string(std::strerror(errno)));

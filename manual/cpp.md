@@ -249,6 +249,10 @@ fallback is to **cut power / e-stop**.
 - **Firmware & DIP:** recent firmware ships in encoder mode — driving without an
   encoder needs `ENC_PPR (156) = 0`. See
   [README → Hardware setup](README.md#hardware-setup).
+- **CTRL stop switch?** `USE_LIMIT_SW (17) = 1` turns the CTRL inputs into
+  **per-direction** gates — pin 6 permits CW (negative rpm), pin 8 permits CCW
+  (positive rpm) — so wiring only pin 8 leaves reverse permanently blocked. Wire both
+  through one normally-closed contact: [Stop input](README.md#stop-input-ctrl-connector).
 - **First drive, in order:** read-only comms check → (no encoder) `ENC_PPR (156) = 0`
   → (serial-only) `USE_LIMIT_SW (17) = 0` → `enable()` → low rpm + a dwell + a stop in
   reach. See the [Python manual checklist](python.md#first-drive-checklist).

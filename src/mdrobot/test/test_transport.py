@@ -159,3 +159,72 @@ def test_resolve_port_env_trimmed_and_whitespace_only_raises(monkeypatch):
     monkeypatch.setenv("MDROBOT_PORT", "   ")
     with pytest.raises(ValueError, match="MDROBOT_PORT"):
         resolve_port()
+
+
+# --- Modbus RTU inter-frame silence (t3.5) ------------------------------------------
+
+
+def test_inter_frame_delay_scales_with_baud_and_is_fixed_above_19200():
+    from mdrobot.constants import MODBUS_T3_5_FIXED, modbus_inter_frame_delay
+
+    # At or below 19200: 3.5 characters of 11 bits.
+    assert modbus_inter_frame_delay(19200) == pytest.approx(3.5 * 11 / 19200)
+    assert modbus_inter_frame_delay(9600) == pytest.approx(3.5 * 11 / 9600)
+    # Slower baud needs a longer gap.
+    assert modbus_inter_frame_delay(9600) > modbus_inter_frame_delay(19200)
+    # Above 19200 the spec fixes it at 1.750 ms.
+    assert modbus_inter_frame_delay(38400) == MODBUS_T3_5_FIXED
+    assert modbus_inter_frame_delay(115200) == MODBUS_T3_5_FIXED
+
+
+def test_from_serial_disables_inter_frame_delay():
+    """An injected fake port has no real line to keep idle — tests must not sleep."""
+    t = SerialTransport.from_serial(FakeSerial())
+    assert t.inter_frame_delay == 0.0
+
+
+def test_write_waits_for_inter_frame_silence(monkeypatch):
+    """write() holds off until the line has been idle for the configured gap."""
+    t = SerialTransport.from_serial(FakeSerial())
+    t.inter_frame_delay = 0.05
+
+    now = [100.0]
+    slept: list[float] = []
+    monkeypatch.setattr("time.monotonic", lambda: now[0])
+    monkeypatch.setattr("time.sleep", lambda s: slept.append(s))
+
+    t._last_activity = now[0] - 0.02  # only 20 ms idle so far
+    t.write(b"\x01")
+    assert slept == [pytest.approx(0.03)]  # waits the remaining 30 ms
+
+    # Already idle longer than the gap -> no wait.
+    slept.clear()
+    t._last_activity = now[0] - 1.0
+    t.write(b"\x02")
+    assert slept == []
+
+
+def test_shared_transport_enforces_gap_across_slave_ids(monkeypatch):
+    """The gap lives on the transport, so it also applies between different clients.
+
+    Two ModbusClients on one bus is the twin topology; the id-to-id transition is
+    exactly where a missing gap breaks framing on a fast adapter.
+    """
+    responses = append_crc(bytes([1, 0x03, 2, 0x00, 0x2A])) + append_crc(
+        bytes([2, 0x03, 2, 0x00, 0x2B])
+    )
+    # flush_clears=False: transact() flushes before each request, which would drop the
+    # queued second response from the fake.
+    fake = FakeSerial(responses, flush_clears=False)
+    t = SerialTransport.from_serial(fake)
+    t.inter_frame_delay = 0.05
+
+    now = [100.0]
+    slept: list[float] = []
+    monkeypatch.setattr("time.monotonic", lambda: now[0])
+    monkeypatch.setattr("time.sleep", lambda s: slept.append(s))
+
+    ModbusClient(t, 1).read_register(10)
+    slept.clear()
+    ModbusClient(t, 2).read_register(10)  # different slave id, same transport
+    assert slept and slept[0] == pytest.approx(0.05)

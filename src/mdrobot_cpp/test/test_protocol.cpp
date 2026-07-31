@@ -1,6 +1,7 @@
 // Copyright 2026 Taesu Yim. Licensed under Apache-2.0.
 #include <gtest/gtest.h>
 
+#include "mdrobot_cpp/constants.hpp"
 #include "mdrobot_cpp/crc.hpp"
 #include "mdrobot_cpp/exceptions.hpp"
 #include "mdrobot_cpp/frame.hpp"
@@ -127,4 +128,26 @@ TEST(Protocol, WriteLongSplitsLowWordFirst) {
   ModbusClient client(transport, 1);
   client.write_long(197, 0x12345678);
   EXPECT_EQ(transport.written, build_write_multiple_request(1, 197, {0x5678, 0x1234}));
+}
+
+// --- Modbus RTU inter-frame silence (t3.5) ------------------------------------------
+//
+// Mirrors mdrobot/constants.py::modbus_inter_frame_delay. SerialTransport owns the
+// gap (not ModbusClient) because several clients share one bus in twin mode.
+
+TEST(InterFrameDelay, ScalesWithBaudAtOrBelow19200) {
+  EXPECT_DOUBLE_EQ(modbus_inter_frame_delay(19200), 3.5 * 11 / 19200.0);
+  EXPECT_DOUBLE_EQ(modbus_inter_frame_delay(9600), 3.5 * 11 / 9600.0);
+  EXPECT_GT(modbus_inter_frame_delay(9600), modbus_inter_frame_delay(19200));
+}
+
+TEST(InterFrameDelay, FixedAbove19200) {
+  EXPECT_DOUBLE_EQ(modbus_inter_frame_delay(38400), MODBUS_T3_5_FIXED);
+  EXPECT_DOUBLE_EQ(modbus_inter_frame_delay(115200), MODBUS_T3_5_FIXED);
+}
+
+TEST(InterFrameDelay, IsConstexpr) {
+  static_assert(modbus_inter_frame_delay(115200) == MODBUS_T3_5_FIXED,
+                "must be usable in a constant expression");
+  SUCCEED();
 }

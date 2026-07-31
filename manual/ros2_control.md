@@ -85,7 +85,7 @@ robot description.
 | `port` | `/dev/ttyUSB0` | serial port (set in the yaml; or override with the `port:=` launch arg). The plugin takes it from the yaml, not from `MDROBOT_PORT` (always set it here); for a re-plug-proof name see [Port setup](setup/port-setup.md) |
 | `baudrate` | `19200` | |
 | `motor_id` | `1` | Modbus slave id. For **twin** each controller has its own (`motor_id_L` / `motor_id_R` in the yaml — see below), not one shared `motor_id`. |
-| `use_limit_sw` | `-1` | `-1` leave as-is, `0` disable, `1` enable (some controllers need `0` for serial drive) |
+| `use_limit_sw` | `-1` | `-1` leave as-is, `0` disable, `1` enable (some controllers need `0` for serial drive). With `1`, CTRL pin 6 and pin 8 gate the two rotation directions separately — see [Stop input](README.md#stop-input-ctrl-connector) |
 | `auto_enable` | `true` | call `enable()` on activation |
 | `position_max_rpm` | `100` | speed cap for position commands |
 | `timeout` | `0.3` | serial read timeout (s) |
@@ -169,7 +169,7 @@ controllers are untested for this write.)*
 | yaml key | meaning |
 |---|---|
 | `motor_id_L` / `motor_id_R` | each controller's Modbus slave id — **must differ** (`on_init` rejects equal ids) |
-| `reverse_L` / `reverse_R` | `true`/`false`. A skid-steer mounts the two motors mirrored, so one side usually needs `reverse: true` for `+cmd_vel.x` to drive the base forward. Applied symmetrically to commands **and** feedback, so odometry stays consistent. Default `false` on both — drive the base, see which side spins backwards, then set it. |
+| `reverse_L` / `reverse_R` | `true`/`false`. A skid-steer mounts the two motors mirrored, so one side usually needs `reverse: true` for `+cmd_vel.x` to drive the base forward. Applied symmetrically to commands **and** feedback, so odometry stays consistent. Default `false` on both — drive the base, see which side spins backwards, then set it. Note the `reverse: true` wheel receives **negative** rpm when the base drives forward, so a CTRL stop switch must gate **both** directions on **both** controllers — see [Stop input](README.md#stop-input-ctrl-connector). |
 | `counts_per_rev_L` / `counts_per_rev_R` | per-wheel counts per rev (hall = `3 × pole count`). Left/right may differ if the motors are not matched; keep it **positive** (it is the SI gate — use `reverse` for direction, never a negative `counts_per_rev`). |
 
 **Partial-failure policy.** If one controller stops responding, the driver
@@ -275,6 +275,31 @@ For a complete, runnable robot (proper URDF geometry, RViz, mock/real switch,
 odometry + TF) see the **[`mdrobot_diffbot_example`](../src/mdrobot_diffbot_example/README.md)**
 package.
 
+## Troubleshooting
+
+- **One wheel is dead, or the base only drives one way.** With `use_limit_sw: 1` the
+  CTRL inputs become **per-direction** gates: pin 6 (`DIR`) permits CW = negative rpm,
+  pin 8 (`START/STOP`) permits CCW = positive rpm. Wiring only pin 8 blocks reverse —
+  and because the `reverse: true` wheel gets negative rpm when the base drives *forward*,
+  that wheel is dead even going straight. Read register 48 (`PID_DI`) on each controller
+  (bit 2 = pin 6, bit 4 = pin 8, **1 = shorted to GND**), then wire pin 6 as well or set
+  `use_limit_sw: 0`. Full wiring: [Stop input](README.md#stop-input-ctrl-connector).
+- **The stop switch worked yesterday and does nothing today.** `USE_LIMIT_SW` was
+  observed resetting to 0 across a power cycle on MD400 v8.6, which silently disarms a
+  CTRL stop switch. Set `use_limit_sw: 1` explicitly in the yaml (not `-1`) so
+  `on_configure` re-writes it every run, and confirm with register 17.
+- **No motion at all, and an encoder is wired.** On MD400 the encoder A/B lines share
+  the CTRL limit inputs, so `use_limit_sw: 1` blocks *all* serial motion. Use
+  `use_limit_sw: 0` with an encoder — you cannot have both the encoder and the CTRL
+  stop switch on these controllers.
+- **The motor turns ~0.6 s, then alarms.** The controller is in encoder mode with no
+  encoder attached — write `ENC_PPR (156) = 0` once with the Python/C++ library. See
+  [README → Hardware setup](README.md#hardware-setup).
+- **`on_configure` fails with a serial-open error.** The `port` no longer matches: the
+  number moves after a re-plug, and swapping the USB adapter changes the
+  `/dev/serial/by-id/...` path and breaks any udev rule pinned to the old adapter's
+  serial. See [Port setup](setup/port-setup.md).
+
 ## Notes
 
 - **Update rate:** each read+write cycle is a few 19200-baud round-trips. A dual
@@ -282,6 +307,12 @@ package.
   `controller_manager` `update_rate` around **15 Hz** for dual; higher rates
   overrun. **Twin** does two reads + two writes on the one bus, so it ships at
   **10 Hz** (see `twin_controllers.yaml`).
+- **The rate depends on your USB adapter, not just the baud rate.** Adapter buffering
+  dominates the round-trip: the same twin cycle measured **96 ms** on an FTDI at its
+  default `latency_timer` of 16 ms and **66 ms** with the timer at 1 ms — the difference
+  between ~4 ms and ~33 ms of headroom at 10 Hz. Set the timer (or use a CH340, which
+  needs nothing) before raising the rate: see
+  [Port setup → Adapter latency](setup/port-setup.md#adapter-latency--it-sets-your-maximum-update-rate).
 - **Measuring the cycle.** "Raise `update_rate` only if `read()+write()` < 80 ms" needs
   a measurement — time one read+write round-trip on your bus:
   ```python
@@ -291,6 +322,21 @@ package.
       t = time.perf_counter()
       d.read_main_data(); d.set_velocities(0, 0)
       print(f"{(time.perf_counter() - t) * 1e3:.1f} ms")   # keep update_rate period above this
+  ```
+  For **twin**, time the whole 4-transaction cycle against both slave ids — a per-wheel
+  measurement misses the id-to-id transitions that make up half the cycle:
+  ```python
+  import time
+  from mdrobot import SingleMotorDriver
+  from mdrobot.protocol import ModbusClient
+  with SingleMotorDriver.open("/dev/ttyUSB0") as left:      # one bus, one transport
+      drivers = [left, SingleMotorDriver(ModbusClient(left.client.transport, 2))]
+      t = time.perf_counter()
+      for d in drivers:
+          d.read_monitor()
+      for d in drivers:
+          d.set_velocity(0)
+      print(f"{(time.perf_counter() - t) * 1e3:.1f} ms")
   ```
 - **timeout vs update_rate vs max_comm_errors.** The serial `timeout` (0.3 s) is a few
   times the loop period, so one timed-out read overruns a cycle; the loop keeps the last
@@ -302,7 +348,11 @@ package.
   interface a controller claims.
 - **Safety:** start at low speed, no load, with an emergency stop within reach.
   This is a generic driver — soft limits, odometry and kinematics belong in the
-  robot layer above it.
+  robot layer above it. A CTRL stop switch
+  ([Stop input](README.md#stop-input-ctrl-connector)) is a convenience, not a
+  functional-safety e-stop: it must gate **both** directions on **both** controllers,
+  and releasing it re-arms the motors immediately because this plugin writes a command
+  every cycle. Keep a power cut available.
 - **Firmware & DIP:** recent firmware ships in encoder mode; driving without an
   encoder needs `ENC_PPR (156) = 0` (one-time, set with the python/C++ library).
   See [README → Hardware setup](README.md#hardware-setup).

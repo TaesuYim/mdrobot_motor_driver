@@ -71,7 +71,7 @@ ros2 run mdrobot_ros2_driver motor_driver_node --ros-args \
 | `joint_names` | `[]` | names for `joint_states` (auto-generated if empty) |
 | `auto_enable` | `true` | call `enable()` on startup |
 | `counts_per_rev` | `[0.0]` | per-channel; enables SI `joint_states` (see below) |
-| `use_limit_sw` | `-1` | `-1` = leave as-is, `0`/`1` = force; some controllers need `0` for serial drive |
+| `use_limit_sw` | `-1` | `-1` = leave as-is, `0`/`1` = force; some controllers need `0` for serial drive. With `1`, CTRL pin 6 and pin 8 gate the two rotation directions separately — see [Stop input](README.md#stop-input-ctrl-connector) |
 
 ## Topics & services
 
@@ -146,7 +146,7 @@ torque-off and then exits. Notes:
   After a SIGKILL the motor may not have been stopped — cut power / e-stop, or
   reconnect and `stop` it.
 
-## Troubleshooting — motor won't move
+## Troubleshooting — motor won't move (or only turns one way)
 
 1. Does the node's `port` match the device? It can become `ttyUSB1` after a re-plug or
    reboot — check `ls /dev/ttyUSB*` (or use a `/dev/serial/by-id/...` path). A missing
@@ -154,18 +154,24 @@ torque-off and then exits. Notes:
 2. Is the node enabled? (`auto_enable` true, or call `~/enable`.) `enable()` sets
    `UI_COM=1` and arms `START/STOP`.
 3. **Single-channel**: some controllers need `USE_LIMIT_SW=0` for serial drive —
-   set `use_limit_sw: 0` in the config file.
-4. **Recent firmware, no encoder**: motor turns briefly then stops with an alarm
+   set `use_limit_sw: 0` in the config file. `0` makes the controller ignore the CTRL
+   inputs entirely; `1` turns CTRL pin 6 and pin 8 into per-direction gates (next item).
+4. **Turns one direction only?** With `use_limit_sw: 1`, pin 6 (`DIR`) permits CW
+   (negative rpm) and pin 8 (`START/STOP`) permits CCW (positive rpm), so an open pin 6
+   kills reverse. Read register 48 (`PID_DI`) to see the pin state — bit 2 = pin 6,
+   bit 4 = pin 8, **1 = shorted to GND**. Wire pin 6 as well, or set `use_limit_sw: 0`.
+   See [Stop input](README.md#stop-input-ctrl-connector).
+5. **Recent firmware, no encoder**: motor turns briefly then stops with an alarm
    (~0.6 s) → **encoder mode**. Write `ENC_PPR (156) = 0` once with the Python/C++
    library (the node has no parameter — it's a one-time controller setting). See
    [README → Hardware setup](README.md#hardware-setup).
-5. **Dual-channel, motor 2 not turning**: handled by the driver (motor 2 uses its
+6. **Dual-channel, motor 2 not turning**: handled by the driver (motor 2 uses its
    own command register).
-6. Some dual-channel controllers turn **~1 s after** the command.
-7. Alarm bit set? Call `~/reset_alarm`.
-8. Unstable readbacks may indicate a serial session desync (some adapters); the
+7. Some dual-channel controllers turn **~1 s after** the command.
+8. Alarm bit set? Call `~/reset_alarm`.
+9. Unstable readbacks may indicate a serial session desync (some adapters); the
    node cross-checks the version register on connect.
-9. **Turns ~0.5 s then stops (no alarm)?** That is the `command_timeout` watchdog —
+10. **Turns ~0.5 s then stops (no alarm)?** That is the `command_timeout` watchdog —
    `pub -1` sent a single command. Publish at a rate (`-r 10`), raise `command_timeout`,
    or set it to `0`. A "command_timeout exceeded" warning is logged when it fires.
 

@@ -24,3 +24,24 @@ ID_DEVELOPER_CHK = 0x77  # developer check value. Purpose unclear.
 DEFAULT_SLAVE_ID = 1
 DEFAULT_BAUDRATE = 19200
 DEFAULT_TIMEOUT = 0.3          # serial read timeout (s); enough for a max 23-byte frame.
+
+# Modbus RTU frames are delimited by silence, not by a start byte: a receiver treats
+# 3.5 character times of idle line as "frame over". Without that gap the tail of one
+# response and the next request arrive as one continuous stream and the addressed
+# slave discards both. The spec fixes the gap at 1.750 ms above 19200 baud and at
+# 3.5 characters (11 bits each, counting the parity slot even for 8N1) at or below it.
+MODBUS_T3_5_FIXED = 0.00175  # s; spec-mandated value above 19200 baud
+MODBUS_BITS_PER_CHAR = 11
+
+
+def modbus_inter_frame_delay(baudrate: int) -> float:
+    """Return the Modbus RTU inter-frame silence (t3.5) in seconds for a baud rate.
+
+    Measured need: at 19200 with two controllers on one bus, sending back-to-back
+    transactions with no gap failed every time the addressed slave id changed; a 1 ms
+    gap removed it entirely. Slow USB adapters (FTDI `latency_timer` 16 ms) used to
+    hide this by accident.
+    """
+    if baudrate > 19200:
+        return MODBUS_T3_5_FIXED
+    return 3.5 * MODBUS_BITS_PER_CHAR / baudrate

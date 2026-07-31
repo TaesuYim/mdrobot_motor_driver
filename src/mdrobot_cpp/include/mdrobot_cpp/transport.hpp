@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <chrono>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -38,12 +39,22 @@ class Transport {
 };
 
 /// POSIX termios serial transport for RS485 / Modbus RTU.
+///
+/// The transport also owns the Modbus RTU **inter-frame silence** (t3.5): it holds
+/// off each outgoing frame until the line has been idle long enough. This state
+/// belongs here, not in ModbusClient, because several clients (one per slave id)
+/// share one transport — the gap has to be enforced across the whole bus, and the
+/// id-to-id transition is exactly where the missing gap breaks framing.
 class SerialTransport : public Transport {
  public:
   /// Open a serial port. Throws on failure.
+  ///
+  /// @param inter_frame_delay Modbus t3.5 silence in seconds; negative (the
+  ///        default) derives it from @p baudrate, 0 disables it.
   SerialTransport(const std::string& port, int baudrate = 19200,
                   double timeout = 0.3, double settle = 0.2,
-                  double write_timeout = 1.0);
+                  double write_timeout = 1.0,
+                  double inter_frame_delay = -1.0);
 
   ~SerialTransport() override;
 
@@ -60,11 +71,18 @@ class SerialTransport : public Transport {
 
   const std::string& port() const { return port_; }
   int baudrate() const { return baudrate_; }
+  double inter_frame_delay() const { return inter_frame_delay_; }
 
  private:
+  /// Block until the line has been idle for inter_frame_delay_.
+  void await_inter_frame();
+  void mark_activity();
+
   std::string port_;
   int baudrate_;
   double write_timeout_;
+  double inter_frame_delay_;
+  std::chrono::steady_clock::time_point last_activity_{};
   int fd_ = -1;
 };
 

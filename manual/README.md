@@ -42,10 +42,72 @@ For the full ordered first-drive sequence (comms check → `ENC_PPR` → `USE_LI
 `enable()` → low rpm + dwell + a stop in reach), see the
 [Python manual first-drive checklist](python.md#first-drive-checklist).
 
-**Stop input:** for serial-only control, set `USE_LIMIT_SW (17) = 0`. To add a hardware
-stop switch on the CTRL connector, set `USE_LIMIT_SW = 1` and wire it to **pin 8
-(START/STOP)** — opening it stops the motor (pin 7 RUN/BRAKE is overridden by the
-continuous velocity command, so it won't stop a continuously-driven motor).
+**USB-RS485 adapter:** any of them works, but the adapter's buffering — not the baud
+rate — sets how fast the control loop can run, and swapping adapters changes the port
+name. If you drive two controllers on one bus (`twin`) or want to raise `update_rate`,
+read [Port setup → Adapter latency](setup/port-setup.md#adapter-latency--it-sets-your-maximum-update-rate)
+first; an FTDI at its factory setting costs about 30 ms per twin cycle.
+
+### Stop input (CTRL connector)
+
+**Serial-only control:** set `USE_LIMIT_SW (17) = 0`. The CTRL inputs are then ignored
+entirely and nothing below applies.
+
+**With a hardware stop switch:** set `USE_LIMIT_SW (17) = 1` — but understand what that
+does first. Under serial control the CTRL inputs become **one gate per rotation
+direction**:
+
+| CTRL pin | Gates | The motor turns that way only if |
+|---|---|---|
+| **6** `DIR` | CW = **negative** rpm | pin 6 is shorted to GND |
+| **8** `START/STOP` | CCW = **positive** rpm | pin 8 is shorted to GND |
+
+CTRL inputs are internally pulled up: **shorted to GND = ON, left open = OFF.**
+
+So wiring **only pin 8** gives you a working stop in one direction and leaves
+**negative rpm permanently blocked** — the motor never turns backwards. On a
+differential base this is worse than it sounds: a skid-steer mounts the two wheels
+mirrored, so one of them runs `reverse: true`, and driving the base *straight forward*
+already commands negative rpm on that wheel.
+
+**Wire both gates through one switch.** Per controller, tie pin 6 and pin 8 together
+and take them through a single **normally-closed** contact to that controller's own
+GND (pin 1 or 9):
+
+```
+CTRL  pin 6 (DIR)        ─┬── NC stop contact ── pin 1/9 (GND)
+      pin 8 (START/STOP) ─┘
+```
+
+Closed = both directions permitted. Open = the motor stops whichever way it was turning.
+
+**Two controllers (twin):** use a **2-pole** NC switch, one pole per controller, each
+returning to that controller's own GND pin. A single-pole switch shared across both
+units works only if they have a solid common ground (which the RS485 link requires
+anyway), but then the pull-up return current depends on that ground path — an easy
+thing to get wrong later.
+
+**Before you rely on this:**
+
+- **This is not a functional-safety e-stop.** Releasing the switch **re-arms the motor
+  immediately** if the command source is still publishing — and `ros2_control` publishes
+  every cycle, so the base drives off again the moment you let go. For a real emergency
+  stop use a **power-cut contactor**, and stop the command source as well.
+- Pin 8 gives a **coast** stop (the load's own inertia), not a braked stop.
+- `USE_LIMIT_SW` may **not survive a power cycle** on some units (a reset to 0 was
+  observed on an MD400 v8.6) — and if it resets, the stop switch silently stops working.
+  Re-assert it at every startup (`ros2_control`: set `use_limit_sw: 1` in the yaml so
+  `on_configure` writes it each run; library: write register 17 before your first
+  command), then read it back and confirm it is 1.
+- **Not usable with a wired encoder** on MD400: the encoder A/B lines share the CTRL
+  limit inputs, so `USE_LIMIT_SW = 1` blocks all motion. Encoder mode means
+  `USE_LIMIT_SW = 0` and no CTRL stop.
+- **Pin 7 (RUN/BRAKE) will not stop a continuously commanded motor** — a periodic
+  velocity command overrides it every cycle. Use pins 6 + 8.
+
+> The pin-6 / pin-8 direction split follows the controller manual and a user report.
+> The pin-8 gate and the digital-input bit polarity were measured on an MD400 v8.6 for
+> this project; **the pin-6 gate was not measured here.**
 
 **Two controllers on one bus (twin):** to drive a skid-steer base from two
 single-channel controllers (e.g. two MD400) over one RS485 bus, give each a

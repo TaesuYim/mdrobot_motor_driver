@@ -52,11 +52,13 @@ adapter. For a **CH340** (`1a86:7523`, the common blue adapters):
 SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", SYMLINK+="mdrobot", MODE="0666"
 ```
 
-For an **FTDI** (`0403:6001`) — these have a unique serial, so pin it exactly
-(replace `FTB6SPL3` with the serial the identify command above printed):
+For an **FTDI** (`0403:6001`) — these have a unique serial, so pin it exactly.
+**Replace the placeholder** with the serial the identify command above printed; a rule
+carrying someone else's serial silently matches nothing, so you lose both the symlink
+and the `MODE` in one go:
 
 ```
-SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6001", ATTRS{serial}=="FTB6SPL3", SYMLINK+="mdrobot", MODE="0666"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6001", ATTRS{serial}=="XXXXXXXX", SYMLINK+="mdrobot", MODE="0666"
 ```
 
 Activate and verify:
@@ -125,6 +127,69 @@ Use that full path as the port (directly, or as `MDROBOT_PORT`). It fixes the
 numbering drift without root, but not the permission problem, and note that
 no-name CH340 clones carry no serial number — two identical CH340s get the
 **same** by-id name and cannot be told apart this way.
+
+## Swapping the adapter breaks a pinned rule
+
+Changing to a different USB-serial adapter changes **both** names it is known by:
+
+```
+usb-FTDI_USB-RS485_FTB6SPL3-if00-port0      # before
+usb-FTDI_FT232R_USB_UART_BG043HTG-if00-port0 # after — different product string AND serial
+```
+
+So a `by-id` path in a yaml stops resolving, and a udev rule pinned to
+`ATTRS{serial}` stops matching — which also drops the `MODE="0666"`, so the port
+reverts to `root:dialout` and you get *Permission denied* rather than a missing file.
+Symptom: the node or `ros2_control`'s `on_configure` fails at startup with a
+serial-open error. Re-run the identify command above and update the rule.
+
+## Adapter latency — it sets your maximum update rate
+
+USB-serial adapters buffer received bytes before handing them to the host, and how long
+they wait dominates a Modbus round-trip far more than the baud rate does.
+
+**FTDI** (`ftdi_sio`) exposes this as `latency_timer`, **16 ms by default**. The chip
+forwards data when its 62-byte buffer fills *or* the timer expires — and a Modbus reply
+is only 7–17 bytes, so it **never** fills the buffer and **always** waits out the timer.
+Check it:
+
+```bash
+cat /sys/bus/usb-serial/devices/ttyUSB0/latency_timer     # 16 = the default
+```
+
+Measured on an FTDI FT232R at 19200 with two MD400s on one bus (a `twin` cycle is
+2 reads + 2 writes):
+
+| `latency_timer` | one `read_monitor` | one velocity write | full twin cycle |
+|---|---|---|---|
+| 16 (default) | 32 ms | 16 ms | **96 ms** |
+| 1 | 17 ms | 12 ms | **66 ms** |
+
+At `update_rate: 10` the period is 100 ms, so the default leaves **under 4 ms of
+headroom** — any hiccup overruns. Dropping the timer to 1 ms leaves ~33 ms and lets the
+same bus sustain ~15 Hz. Set it for this session:
+
+```bash
+echo 1 | sudo tee /sys/bus/usb-serial/devices/ttyUSB0/latency_timer
+```
+
+or permanently, alongside the rule above:
+
+```
+ACTION=="add", SUBSYSTEM=="usb-serial", DRIVER=="ftdi_sio", ATTR{latency_timer}="1"
+```
+
+**CH340** (`ch341`) has no such knob and already polls at ~1 ms, so it needs nothing.
+
+> **You do not need to add a delay of your own.** The library holds each outgoing frame
+> until the line has been idle for the Modbus RTU inter-frame silence (t3.5 — about
+> 2 ms at 19200, derived from the baud rate). On a slow adapter that time has already
+> passed, so it costs nothing; on a fast one it is what keeps frames from running
+> together. `SerialTransport(..., inter_frame_delay=...)` overrides it if you ever need
+> to (0 disables it) — but a shared RS485 bus needs it.
+
+After changing an adapter, re-measure rather than assuming: see
+[ros2_control → Measuring the cycle](../ros2_control.md#notes).
 
 ## Several motors, several adapters?
 

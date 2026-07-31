@@ -13,7 +13,7 @@ from __future__ import annotations
 import os
 from typing import Any, Protocol, runtime_checkable
 
-from .constants import DEFAULT_BAUDRATE, DEFAULT_TIMEOUT
+from .constants import DEFAULT_BAUDRATE, DEFAULT_TIMEOUT, modbus_inter_frame_delay
 
 # Environment variable consulted when no port is given explicitly (see resolve_port).
 PORT_ENV_VAR = "MDROBOT_PORT"
@@ -62,6 +62,12 @@ class SerialTransport:
     Implements the `Transport` protocol. Defaults are 19200 8N1. On RS485
     half-duplex the bus must switch to receive right after transmit, so write
     flushes to wait for transmission to complete.
+
+    The transport also owns the Modbus RTU **inter-frame silence** (t3.5): it holds
+    off each outgoing frame until the line has been idle long enough. This state
+    belongs here, not in `ModbusClient`, because several clients (one per slave id)
+    share one transport — the gap has to be enforced across the whole bus, and the
+    id-to-id transition is exactly where the missing gap breaks framing.
     """
 
     def __init__(
@@ -72,6 +78,7 @@ class SerialTransport:
         timeout: float = DEFAULT_TIMEOUT,
         settle: float = 0.2,
         write_timeout: float = 1.0,
+        inter_frame_delay: float | None = None,
     ) -> None:
         import time
 
@@ -79,6 +86,12 @@ class SerialTransport:
 
         self.port = port
         self.baudrate = baudrate
+        self.inter_frame_delay = (
+            modbus_inter_frame_delay(baudrate)
+            if inter_frame_delay is None
+            else inter_frame_delay
+        )
+        self._last_activity = 0.0
         # write_timeout: keep write/flush from blocking forever if the port wedges
         # (prevents shutdown hangs).
         self._serial = serial.Serial(
@@ -110,17 +123,40 @@ class SerialTransport:
         obj.port = getattr(serial_port, "port", None)
         obj.baudrate = getattr(serial_port, "baudrate", None)
         obj._serial = serial_port
+        # __init__ is bypassed here, so set the inter-frame state explicitly. An
+        # injected fake port has no real line to keep idle, so the delay is 0.
+        obj.inter_frame_delay = 0.0
+        obj._last_activity = 0.0
         return obj
+
+    def _await_inter_frame(self) -> None:
+        """Hold off until the line has been idle for the inter-frame silence."""
+        if self.inter_frame_delay <= 0.0:
+            return
+        import time
+
+        idle_for = time.monotonic() - self._last_activity
+        if idle_for < self.inter_frame_delay:
+            time.sleep(self.inter_frame_delay - idle_for)
+
+    def _mark_activity(self) -> None:
+        import time
+
+        self._last_activity = time.monotonic()
 
     def write(self, data: bytes) -> int:
         """Send data, wait for transmission to complete, and return bytes written."""
+        self._await_inter_frame()
         written = self._serial.write(data)
         self._serial.flush()
+        self._mark_activity()
         return written if written is not None else len(data)
 
     def read(self, size: int) -> bytes:
         """Read up to size bytes; returns fewer (or empty) on timeout."""
-        return self._serial.read(size)
+        data = self._serial.read(size)
+        self._mark_activity()
+        return data
 
     def flush_input(self) -> None:
         """Discard any bytes left in the receive buffer (call before a request)."""

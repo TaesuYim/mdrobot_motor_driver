@@ -23,7 +23,7 @@ PIDs the driver defines; the controller has more.
 | `PID_ALARM_RESET` | 12 | W | Reset alarm |
 | `PID_POSI_RESET` | 13 | W | Reset position to zero |
 | `PID_INV_SIGN_CMD` | 16 | R/W | Reference command sign inverse |
-| `PID_USE_LIMIT_SW` | 17 | R/W | CTRL limit-switch function (0 cancel, 1 use); default 1 |
+| `PID_USE_LIMIT_SW` | 17 | R/W | CTRL limit-switch function (0 cancel, 1 use); default 1. With `1`, CTRL pin 6 (`DIR`) gates CW/negative rpm and pin 8 (`START/STOP`) gates CCW/positive rpm |
 | `PID_INPUT_TYPE` | 25 | R/W | User input type |
 | `PID_USE_LIMIT_SW2` | 29 | R/W | Motor-2 limit-switch function (dual); same meaning as 17 |
 | `PID_CTRL_STATUS` | 34 | R | Status bit map (status-1) |
@@ -150,6 +150,12 @@ boolean field on `StatusBits`.
 | 1 | `ALARM_RESET` | | 5 | `ENC_B` |
 | 2 | `DIR` | | 6 | `ENC_A` |
 | 3 | `RUN_BRAKE` | | | |
+
+> **Polarity.** The CTRL input bits (2 `DIR`, 3 `RUN_BRAKE`, 4 `START_STOP`) read **1
+> when the pin is shorted to GND** and 0 when it is left open — the inputs are
+> internally pulled up. `ENC_A` / `ENC_B` read 1 when open. Under `USE_LIMIT_SW (17) = 1`
+> bits 2 and 4 tell you which rotation directions are currently permitted; see
+> [Stop input](../README.md#stop-input-ctrl-connector).
 
 > Generated from `src/mdrobot/mdrobot/registers.py` and `status.py`
 > (C++ mirror: `mdrobot_cpp/registers.hpp`, `status.hpp`). If they change, update this

@@ -78,8 +78,12 @@ does not apply to your controller (`reg` is `from mdrobot import registers as re
    Recent firmware (e.g. MD400 v8.6) ships in encoder mode and will **lurch ~0.6 s then
    alarm** on the first command until this is set once. *(The motor may move briefly
    here — keep clear.)*
-3. **Serial-only drive?** Some controllers need
-   `d.client.write_register(reg.PID_USE_LIMIT_SW, 0)` (`USE_LIMIT_SW (17) = 0`).
+3. **CTRL limit inputs** — for serial-only drive,
+   `d.client.write_register(reg.PID_USE_LIMIT_SW, 0)` (`USE_LIMIT_SW (17) = 0`); some
+   controllers require it, and an attached encoder makes it mandatory. Keeping a
+   hardware stop switch instead? Set it to `1` and wire **both** CTRL pin 6 and pin 8 —
+   pin 8 alone leaves negative rpm blocked. See
+   [Stop input](README.md#stop-input-ctrl-connector).
 4. **Arm motion** — `d.enable()` (required; otherwise velocity is echoed but the motor
    does not turn).
 5. **Drive low + dwell + keep a stop in reach** — low rpm, hold ≥ ~1.5 s to see real
@@ -392,19 +396,32 @@ finally:
 - Position moves stop on arrival, but a wrong large target over-rotates — test with
   small values first.
 
-## Troubleshooting — motor won't move
+## Troubleshooting — motor won't move (or only turns one way)
 
 1. Did you call `enable()`? (`UI_COM=1` + `START/STOP` arm)
 2. **Single-channel**: some controllers require `USE_LIMIT_SW = 0` (register 17)
    for serial drive. Connecting an encoder can make this mandatory (A/B share
    pins with limit inputs).
-3. **Recent firmware, no encoder**: if the motor turns briefly then stops with an
+3. **Turns one direction only?** With `USE_LIMIT_SW = 1` the CTRL inputs gate the
+   two directions separately — pin 6 permits CW (negative rpm), pin 8 permits CCW
+   (positive rpm) — so an open pin 6 kills reverse. Read register 48 to see the
+   actual pin state (bit 2 = `DIR`/pin 6, bit 4 = `START_STOP`/pin 8; **1 = shorted
+   to GND**):
+
+   ```python
+   di = d.client.read_register(reg.PID_DI)
+   print(f"DI=0x{di:02X}  pin6={'GND' if di & 0b100 else 'open'}  pin8={'GND' if di & 0b10000 else 'open'}")
+   ```
+
+   Fix by wiring pin 6 as well, or by setting `USE_LIMIT_SW = 0`. See
+   [Stop input](README.md#stop-input-ctrl-connector).
+4. **Recent firmware, no encoder**: if the motor turns briefly then stops with an
    alarm (~0.6 s), it is in **encoder mode** — write `ENC_PPR (156) = 0` once. See
    [README → Hardware setup](README.md#hardware-setup).
-4. **Dual-channel, motor 2 not turning**: `set_velocities()` commands motor 2 on
+5. **Dual-channel, motor 2 not turning**: `set_velocities()` commands motor 2 on
    its own register — already handled.
-5. Some dual controllers turn **~1 s after** the command — don't judge "stopped"
+6. Some dual controllers turn **~1 s after** the command — don't judge "stopped"
    too early.
-6. `get_status().alarm` set? Call `reset_alarm()`.
-7. Unstable readbacks → cross-check `get_version()` to confirm the transaction is
+7. `get_status().alarm` set? Call `reset_alarm()`.
+8. Unstable readbacks → cross-check `get_version()` to confirm the transaction is
    aligned (some adapters show session desync).
