@@ -50,38 +50,22 @@ first; an FTDI at its factory setting costs about 30 ms per twin cycle.
 
 ### Stop input (CTRL connector)
 
-**Serial-only control:** set `USE_LIMIT_SW (17) = 0`. The CTRL inputs are then ignored
-entirely and nothing below applies.
+`USE_LIMIT_SW (17)` selects what the CTRL inputs do under serial control:
 
-**With a hardware stop switch:** set `USE_LIMIT_SW (17) = 1` — but understand what that
-does first. Under serial control the CTRL inputs become **one gate per rotation
-direction**:
+- `0` — they are ignored; only the serial command moves the motor.
+- `1` — they act as **one gate per rotation direction**:
 
-| CTRL pin | Gates | The motor turns that way only if |
+| CTRL pin | Permits | The motor turns that way while |
 |---|---|---|
 | **6** `DIR` | CW = **negative** rpm | pin 6 is shorted to GND |
 | **8** `START/STOP` | CCW = **positive** rpm | pin 8 is shorted to GND |
 
-CTRL inputs are internally pulled up: **shorted to GND = ON, left open = OFF.**
+The inputs are internally pulled up: **shorted to GND = ON, left open = OFF.**
 
-That splits into two ways of getting it wrong, and the second one is the dangerous one:
-
-- **Switch on pin 8, pin 6 left open** → negative rpm is **permanently blocked**: the
-  motor never turns backwards. Annoying, but you find out immediately.
-- **Pin 6 tied to GND, switch on pin 8 only** → both directions drive normally, so
-  nothing looks wrong — but **the stop switch only stops one of them.** Opening pin 8
-  halts CCW (positive rpm) instantly, and does **nothing at all** to CW (negative rpm):
-  measured on two MD400 v8.6 at −30 rpm, holding the switch open for 3.5 s produced no
-  deceleration whatsoever. You discover this the first time you need to stop while
-  reversing.
-
-On a differential base that second case is worse still: a skid-steer mounts the two
-wheels mirrored, so one of them runs `reverse: true` and receives negative rpm when the
-base drives *straight forward* — that wheel will not stop.
-
-**Wire both gates through one switch.** Per controller, tie pin 6 and pin 8 together
-and take them through a single **normally-closed** contact to that controller's own
-GND (pin 1 or 9):
+**Wiring a stop switch.** The two directions are gated separately, so the switch has to
+open both. Per controller, tie pin 6 and pin 8 together and take them through one
+**normally-closed** contact to that controller's own GND (pin 1 or 9), and set
+`USE_LIMIT_SW = 1`:
 
 ```
 CTRL  pin 6 (DIR)        ─┬── NC stop contact ── pin 1/9 (GND)
@@ -90,34 +74,32 @@ CTRL  pin 6 (DIR)        ─┬── NC stop contact ── pin 1/9 (GND)
 
 Closed = both directions permitted. Open = the motor stops whichever way it was turning.
 
-**Two controllers (twin):** use a **2-pole** NC switch, one pole per controller, each
-returning to that controller's own GND pin. A single-pole switch shared across both
-units works only if they have a solid common ground (which the RS485 link requires
-anyway), but then the pull-up return current depends on that ground path — an easy
-thing to get wrong later.
+For **twin**, use a **2-pole** NC switch — one pole per controller, each returning to
+that controller's own GND pin. A single-pole switch shared across both units relies on
+the two having a common ground.
 
-**Before you rely on this:**
+**How it behaves.** Measured on two MD400 v8.6 driven with a periodic velocity command:
 
-- **This is not a functional-safety e-stop.** Releasing the switch **re-arms the motor
-  immediately** if the command source is still publishing — and `ros2_control` publishes
-  every cycle, so the base drives off again the moment you let go. For a real emergency
-  stop use a **power-cut contactor**, and stop the command source as well.
-- Pin 8 gives a **coast** stop (the load's own inertia), not a braked stop.
-- `USE_LIMIT_SW` may **not survive a power cycle** on some units (a reset to 0 was
-  observed on an MD400 v8.6) — and if it resets, the stop switch silently stops working.
-  Re-assert it at every startup (`ros2_control`: set `use_limit_sw: 1` in the yaml so
-  `on_configure` writes it each run; library: write register 17 before your first
-  command), then read it back and confirm it is 1.
-- **Not usable with a wired encoder** on MD400: the encoder A/B lines share the CTRL
-  limit inputs, so `USE_LIMIT_SW = 1` blocks all motion. Encoder mode means
-  `USE_LIMIT_SW = 0` and no CTRL stop.
-- **Pin 7 (RUN/BRAKE) will not stop a continuously commanded motor** — a periodic
-  velocity command overrides it every cycle. Use pins 6 + 8.
+- Opening the contact stops the motor within one control cycle. The stop is a **coast** —
+  the load's inertia carries it — not a braked stop.
+- Closing it again restarts the motor as soon as the next command arrives, and
+  `ros2_control` sends one every cycle.
+- A switch on **pin 8 alone** stops CCW and leaves CW running: at −30 rpm, holding pin 8
+  open for 3.5 s produced no deceleration. Pin 6 is what covers the other direction.
+  (On a skid-steer the `reverse: true` wheel runs on negative rpm when the base drives
+  forward.)
+- `USE_LIMIT_SW` was seen back at `0` after a power cycle, so set it on every startup —
+  `use_limit_sw: 1` in the `ros2_control` yaml, which writes it on each `on_configure`,
+  or register 17 from the library — and read it back.
+- On MD400 the encoder A/B lines share the CTRL limit inputs, so with an encoder wired
+  `USE_LIMIT_SW = 1` blocks all motion. Encoder mode means `USE_LIMIT_SW = 0` and no
+  CTRL stop.
+- Pin 7 (`RUN/BRAKE`) is overridden by the periodic velocity command, so it does not
+  stop a continuously driven motor.
 
-> Measured on two MD400 v8.6 for this project: that the gates are **per direction** —
-> pin 8 stops CCW and does nothing to CW — and that pins 6 and 8 both grounded drive
-> both directions. That **pin 6** is specifically the CW gate follows the controller
-> manual and a user report; it was not isolated here.
+> Measured here: the gates are per direction (pin 8 stops CCW, does nothing to CW), and
+> pins 6 and 8 both grounded drive both directions. That **pin 6** is the CW gate comes
+> from the controller manual and a user report; it was not isolated in a test.
 
 **Two controllers on one bus (twin):** to drive a skid-steer base from two
 single-channel controllers (e.g. two MD400) over one RS485 bus, give each a

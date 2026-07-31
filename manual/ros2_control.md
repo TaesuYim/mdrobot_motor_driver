@@ -349,10 +349,9 @@ package.
 - **Safety:** start at low speed, no load, with an emergency stop within reach.
   This is a generic driver — soft limits, odometry and kinematics belong in the
   robot layer above it. A CTRL stop switch
-  ([Stop input](README.md#stop-input-ctrl-connector)) is a convenience, not a
-  functional-safety e-stop: it must gate **both** directions on **both** controllers,
-  and releasing it re-arms the motors immediately because this plugin writes a command
-  every cycle. Keep a power cut available.
+  ([Stop input](README.md#stop-input-ctrl-connector)) gates each rotation direction
+  separately, so it has to open both pins on both controllers; releasing it re-arms the
+  motors, because this plugin writes a command every cycle.
 - **Firmware & DIP:** recent firmware ships in encoder mode; driving without an
   encoder needs `ENC_PPR (156) = 0` (one-time, set with the python/C++ library).
   See [README → Hardware setup](README.md#hardware-setup).
