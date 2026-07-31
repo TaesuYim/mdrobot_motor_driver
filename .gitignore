@@ -8,12 +8,12 @@ build/
 dist/
 .installed.cfg
 
-# 가상환경
+# Virtualenvs
 .venv/
 venv/
 env/
 
-# 테스트/커버리지 캐시
+# Test / coverage caches
 .pytest_cache/
 .coverage
 .coverage.*
@@ -22,17 +22,17 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 
-# ROS 2 colcon 산출물
+# ROS 2 colcon output
 /build/
 /install/
 /log/
 
-# C++ 빌드 (mdrobot_cpp)
+# C++ build (mdrobot_cpp)
 /build/
 *.o
 *.so
 
-# 에디터/OS
+# Editor / OS
 .vscode/
 .idea/
 *.swp
