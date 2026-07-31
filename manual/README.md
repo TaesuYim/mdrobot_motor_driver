@@ -64,11 +64,20 @@ direction**:
 
 CTRL inputs are internally pulled up: **shorted to GND = ON, left open = OFF.**
 
-So wiring **only pin 8** gives you a working stop in one direction and leaves
-**negative rpm permanently blocked** — the motor never turns backwards. On a
-differential base this is worse than it sounds: a skid-steer mounts the two wheels
-mirrored, so one of them runs `reverse: true`, and driving the base *straight forward*
-already commands negative rpm on that wheel.
+That splits into two ways of getting it wrong, and the second one is the dangerous one:
+
+- **Switch on pin 8, pin 6 left open** → negative rpm is **permanently blocked**: the
+  motor never turns backwards. Annoying, but you find out immediately.
+- **Pin 6 tied to GND, switch on pin 8 only** → both directions drive normally, so
+  nothing looks wrong — but **the stop switch only stops one of them.** Opening pin 8
+  halts CCW (positive rpm) instantly, and does **nothing at all** to CW (negative rpm):
+  measured on two MD400 v8.6 at −30 rpm, holding the switch open for 3.5 s produced no
+  deceleration whatsoever. You discover this the first time you need to stop while
+  reversing.
+
+On a differential base that second case is worse still: a skid-steer mounts the two
+wheels mirrored, so one of them runs `reverse: true` and receives negative rpm when the
+base drives *straight forward* — that wheel will not stop.
 
 **Wire both gates through one switch.** Per controller, tie pin 6 and pin 8 together
 and take them through a single **normally-closed** contact to that controller's own
@@ -105,9 +114,10 @@ thing to get wrong later.
 - **Pin 7 (RUN/BRAKE) will not stop a continuously commanded motor** — a periodic
   velocity command overrides it every cycle. Use pins 6 + 8.
 
-> The pin-6 / pin-8 direction split follows the controller manual and a user report.
-> The pin-8 gate and the digital-input bit polarity were measured on an MD400 v8.6 for
-> this project; **the pin-6 gate was not measured here.**
+> Measured on two MD400 v8.6 for this project: that the gates are **per direction** —
+> pin 8 stops CCW and does nothing to CW — and that pins 6 and 8 both grounded drive
+> both directions. That **pin 6** is specifically the CW gate follows the controller
+> manual and a user report; it was not isolated here.
 
 **Two controllers on one bus (twin):** to drive a skid-steer base from two
 single-channel controllers (e.g. two MD400) over one RS485 bus, give each a
