@@ -333,16 +333,47 @@ class MotorDriverNode(Node):
             pass
 
     # --- shutdown ----------------------------------------------------------------------
+    def _retry_on_shutdown(self, what: str, action, attempts: int = 3) -> bool:
+        """Run a stop action, retrying a desynced frame. Never raises.
+
+        A SIGINT can land while the publish timer is mid-transaction, so the tail of
+        that response is still on the wire. `_transact` flushes the input buffer before
+        every request, but bytes arriving *after* that flush get parsed as the head of
+        the next response (IncompleteResponseError / CrcError) even though the link is
+        healthy. Sleeping lets the stale frame finish arriving; the next attempt's flush
+        then clears it and the frames realign.
+        """
+        last = None
+        for attempt in range(attempts):
+            try:
+                action()
+                return True
+            except Exception as exc:  # noqa: BLE001 - shutdown must always proceed
+                last = exc
+                if attempt + 1 < attempts:
+                    time.sleep(0.05)
+        self.get_logger().error(
+            f"shutdown {what} failed after {attempts} tries: {type(last).__name__}: {last}"
+        )
+        return False
+
     def shutdown(self) -> None:
         """Stop (stop + torque_off), then close the port. Absorb all exceptions so a
         wedged serial line cannot block shutdown (write_timeout keeps serial writes from
         blocking forever)."""
         try:
-            self.driver.stop()
-            self._svc_torque_off()
-            self.get_logger().info("shutdown: stop + torque_off")
-        except Exception as exc:  # noqa: BLE001 - shutdown must always proceed
-            self.get_logger().error(f"shutdown stop failed (ignored): {type(exc).__name__}: {exc}")
+            # Independent attempts: torque_off stops the motor on its own (it coasts),
+            # so a failing stop() must not take it down with it.
+            stopped = self._retry_on_shutdown("stop", self.driver.stop)
+            freed = self._retry_on_shutdown("torque_off", self._svc_torque_off)
+            done = [n for n, ok in (("stop", stopped), ("torque_off", freed)) if ok]
+            if done:
+                self.get_logger().info(f"shutdown: {' + '.join(done)}")
+            else:
+                self.get_logger().error(
+                    "SHUTDOWN COULD NOT STOP THE MOTOR — cut power / e-stop, "
+                    "or reconnect and stop it"
+                )
         finally:
             try:
                 self.driver.close()

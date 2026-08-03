@@ -22,7 +22,7 @@ that has actually been tested — see
 > - New here? Start with the [Python quick start](#python-library) — it needs
 >   nothing but `pip` and an RS485 adapter, no ROS 2.
 
-All packages are versioned and released together — current release: **1.2.1**.
+All packages are versioned and released together — current release: **1.2.2**.
 
 The project is a colcon workspace of complementary packages — use only what you need:
 
