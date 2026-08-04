@@ -24,12 +24,14 @@ PIDs the driver defines; the controller has more.
 | `PID_POSI_RESET` | 13 | W | Reset position to zero |
 | `PID_INV_SIGN_CMD` | 16 | R/W | Reference command sign inverse |
 | `PID_USE_LIMIT_SW` | 17 | R/W | CTRL limit-switch function (0 cancel, 1 use); default 1. With `1`, CTRL pin 6 (`DIR`) gates CW/negative rpm and pin 8 (`START/STOP`) gates CCW/positive rpm |
+| `PID_HALL_TYPE` | 21 | R/W | Motor pole / hall type (0:4p, 1:8p, **2:10p**, 3:12p, 4:2p, 5:6p). Sets the hall resolution: `counts/rev = 3 × poles` |
 | `PID_INPUT_TYPE` | 25 | R/W | User input type |
 | `PID_USE_LIMIT_SW2` | 29 | R/W | Motor-2 limit-switch function (dual); same meaning as 17 |
 | `PID_CTRL_STATUS` | 34 | R | Status bit map (status-1) |
 | `PID_DI` | 48 | R | Digital-input bits |
 | `PID_IN_POSITION_OK` | 49 | R | Position control done (0/1) |
 | `PID_UI_COM` | 78 | R/C | Serial-comm control (0 = CTRL I/O, 1 = serial only) |
+| `PID_ENC_INV_DIR` | 80 | R/W | Encoder A/B phase swap (0 normal, 1 swap) |
 | `PID_START_STOP` | 100 | C | Start/stop (0 stop, 1 CCW, 2 CW); run-latch arm |
 
 ### Word command / data PIDs (101–190)
@@ -47,7 +49,7 @@ PIDs the driver defines; the controller has more.
 | `PID_VOLT_IN` | 143 | R | Supply voltage, 0.1 V units (`get_voltage`) |
 | `PID_RETURN_TYPE` | 149 | R/W | Return type after a command |
 | `PID_TAR_VEL` | 155 | R/W | Fixed target speed, rpm |
-| `PID_ENC_PPR` | 156 | R/W | Encoder pulses-per-rev; **0 = no encoder** (hall closed-loop). Recent firmware ships in encoder mode → set `0` for hall drive |
+| `PID_ENC_PPR` | 156 | R/W | Encoder pulses-per-rev; **0 = no encoder** (hall closed-loop). Recent firmware ships in encoder mode → set `0` for hall drive. With an encoder wired, set the **rated PPR**: it feeds the velocity loop only, position stays on the hall counter |
 | `PID_REF_RPM` | 166 | R | Reference velocity, signed rpm |
 | `PID_PNT_TQ_OFF` | 174 | C | Free/tq-off both motors (DL motor1, DH motor2) |
 | `PID_PNT_BRAKE` | 175 | C | Electric brake both motors (DL motor1, DH motor2) |

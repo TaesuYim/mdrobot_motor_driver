@@ -22,7 +22,7 @@ that has actually been tested — see
 > - New here? Start with the [Python quick start](#python-library) — it needs
 >   nothing but `pip` and an RS485 adapter, no ROS 2.
 
-All packages are versioned and released together — current release: **1.2.2**.
+All packages are versioned and released together — current release: **1.3.0**.
 
 The project is a colcon workspace of complementary packages — use only what you need:
 
@@ -189,7 +189,7 @@ the doc convention `DL/10 . DL%10`):
 | Model | Type | Firmware (raw DL / approx.) | Verified |
 |---|---|---|---|
 | MD400 | single | DL=81 / v8.1 | identify, read, velocity (both directions), position (absolute/relative), ROS 2 node |
-| MD400 | single | DL=86 / v8.6 | ships in encoder mode → set `ENC_PPR (156) = 0` for hall closed-loop drive (counts/rev = 30); velocity, position, ROS 2 node; `PID_ID (133)` slave-id change; twin diff-drive (2 units, one bus) via ros2_control |
+| MD400 | single | DL=86 / v8.6 | ships in encoder mode → set `ENC_PPR (156) = 0` for hall closed-loop drive (counts/rev = 30); velocity, position, ROS 2 node; `PID_ID (133)` slave-id change; twin diff-drive (2 units, one bus) via ros2_control; encoder mode with a 1000 PPR encoder wired (velocity loop only — position stays on the hall counter) |
 | PNT50 | dual | DL=45 / v4.5 | identify, read, velocity (both motors), position (simultaneous), ROS 2 node |
 | MD400T | dual | DL=72 / v7.2 | identify, read, velocity (both motors), position (simultaneous), ROS 2 node |
 

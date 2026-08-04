@@ -10,6 +10,7 @@ import pytest
 from mdrobot import registers as reg
 from mdrobot.crc import append_crc
 from mdrobot.device import DualMotorDriver, SingleMotorDriver
+from mdrobot.exceptions import MdrobotError
 from mdrobot.protocol import ModbusClient
 
 
@@ -185,6 +186,47 @@ def test_single_get_in_position():
     assert drv.get_in_position() is True
     drv2, _ = make_single({reg.PID_IN_POSITION_OK: [0]})
     assert drv2.get_in_position() is False
+
+
+# --- encoder velocity feedback -------------------------------------------------------
+# `settle=0.0` keeps the tests fast; on hardware the default delay covers the controller
+# reinitialising after the write.
+
+def test_get_encoder_ppr_reads_register():
+    drv, _ = make_single({reg.PID_ENC_PPR: [1000]})
+    assert drv.get_encoder_ppr() == 1000
+
+
+def test_set_encoder_ppr_writes_then_verifies():
+    # the fake keeps registers static, so seed the value the write is expected to land on
+    drv, dev = make_single({reg.PID_ENC_PPR: [1000]})
+    drv.set_encoder_ppr(1000, settle=0.0)
+    assert dev.frames[0] == w1(reg.PID_ENC_PPR, 1000)
+
+
+def test_disable_encoder_writes_zero():
+    drv, dev = make_single()
+    drv.disable_encoder(settle=0.0)
+    assert dev.frames[0] == w1(reg.PID_ENC_PPR, 0)
+
+
+def test_set_encoder_ppr_raises_when_not_applied():
+    drv, _ = make_single()  # reads back 0, not the 1000 that was written
+    with pytest.raises(MdrobotError):
+        drv.set_encoder_ppr(1000, settle=0.0)
+
+
+def test_set_encoder_ppr_can_skip_verification():
+    drv, dev = make_single()
+    drv.set_encoder_ppr(1000, settle=0.0, verify=False)
+    assert dev.frames == [w1(reg.PID_ENC_PPR, 1000)]
+
+
+def test_set_encoder_ppr_rejects_out_of_range():
+    drv, dev = make_single()
+    with pytest.raises(ValueError):
+        drv.set_encoder_ppr(70000)
+    assert dev.frames == []
 
 
 # --- DualMotorDriver -----------------------------------------------------------------

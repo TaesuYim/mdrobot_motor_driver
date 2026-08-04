@@ -15,6 +15,9 @@
 
 namespace mdrobot {
 
+/// Writing PID_ENC_PPR(156) can reinitialise the controller; wait this long before reading back.
+constexpr double kEncoderSettleS = 2.5;
+
 /// Shared base for single/dual: connection, version/voltage/status, enable/disable, alarm reset, slow.
 class DriverBase {
  public:
@@ -69,6 +72,22 @@ class SingleMotorDriver : public DriverBase {
   bool get_in_position();
   bool wait_in_position(double timeout = 10.0, double poll = 0.1);
 
+  // --- encoder velocity feedback (hardware-verified 2026-08-04, 2x MD400 v8.6) ---
+  /// Encoder pulses-per-rev setting; 0 = encoder off (hall closed-loop).
+  int get_encoder_ppr();
+  /// Use an attached encoder for velocity feedback; @p ppr is its rated pulses-per-rev.
+  ///
+  /// WARNING: the controller trusts this number as one revolution, so a mismatched value
+  /// scales the real speed by (configured / actual). A too-large value makes the motor
+  /// turn faster than commanded while the reported rpm still looks correct. The encoder
+  /// must be wired: a nonzero PPR with no signal trips ENC_FAIL once the motor starts.
+  /// Reported position stays on the hall counter regardless, so odometry counts/rev is
+  /// unaffected. Stored in EEPROM. The write can reinitialise the controller, hence the
+  /// settle delay plus read-back (@p verify).
+  void set_encoder_ppr(int ppr, double settle = kEncoderSettleS, bool verify = true);
+  /// Turn the encoder off (PPR = 0) and run hall closed-loop instead.
+  void disable_encoder(double settle = kEncoderSettleS, bool verify = true);
+
   // --- slow-start / slow-down (speed slow hardware-verified Phase 12; position slow doc-based) ---
   void set_slow_start(double seconds, double full_scale_s = 15.0);
   double get_slow_start(double full_scale_s = 15.0);
@@ -81,6 +100,7 @@ class SingleMotorDriver : public DriverBase {
 
  private:
   void write_posi_vel(uint16_t pid, int32_t position, int speed);
+  int read_encoder_ppr_retrying();
 };
 
 /// Dual-channel motor driver. channel is 1 or 2.

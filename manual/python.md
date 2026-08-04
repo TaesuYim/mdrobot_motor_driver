@@ -237,6 +237,43 @@ with DualMotorDriver.open("/dev/ttyUSB0") as d:
     d.stop(); d.torque_off_both()
 ```
 
+## Encoder velocity feedback
+
+`SingleMotorDriver` only. An attached encoder is a **speed sensing input** for the
+controller — that is how the vendor protocol manual defines register 156. It does **not**
+change the reported position: position is defined as `3 × pole count` per revolution and
+stays on the hall counter either way, so `counts_per_rev` for odometry is the same with
+or without an encoder. There is no register that switches position onto the encoder.
+
+What it buys you is control quality — the vendor manual sells the encoder for 4-quadrant
+servo drive, holding speed under load, and crisper position moves. On a **no-load** bench
+run at a steady 10–30 rpm we measured no clear difference against hall feedback, so judge
+it under your own load. Verified on MD400 v8.6 with a 1000 PPR encoder.
+
+| Method | Returns | Description |
+|---|---|---|
+| `get_encoder_ppr()` | `int` | Current setting; `0` = encoder off (hall closed-loop). |
+| `set_encoder_ppr(ppr)` | `None` | Use the encoder; `ppr` is its **rated pulses-per-rev**. |
+| `disable_encoder()` | `None` | Turn the encoder off (`ppr = 0`). |
+
+```python
+d.set_encoder_ppr(1000)   # encoder wired, rated 1000 PPR
+print(d.get_encoder_ppr())
+d.disable_encoder()       # back to hall closed-loop
+```
+
+> **Give it the encoder's real PPR.** The controller trusts this number as one
+> revolution, so a mismatch scales the actual speed by `configured / actual`. A value
+> that is **too large makes the motor turn faster than commanded**, and nothing in the
+> reported speed or position reveals it — a too-small value only runs slow, so start low
+> if you are unsure. A wrong value also makes the reported speed jitter badly.
+
+> The encoder must be wired: with a nonzero PPR and no encoder signal the controller
+> trips `ENC_FAIL` about 0.6 s after the motor starts. Both calls write to EEPROM and
+> survive a power cycle. The write can reinitialise the controller, so they take a
+> couple of seconds and then read the value back to confirm (`MdrobotError` if it did
+> not stick); pass `verify=False` to skip that, `settle=` to change the delay.
+
 ## Acceleration / deceleration (slow-start / slow-down)
 
 Ramp time maps to a 0–`PID_MAX_SS_TIME` second scale (default full scale 15 s).

@@ -41,6 +41,8 @@ UI_COM_SERIAL = 1
 # PID_START_STOP(100) values.
 START = 1
 STOP = 0
+# Writing PID_ENC_PPR(156) can reinitialise the controller; wait this long before reading back.
+ENCODER_SETTLE_S = 2.5
 
 
 class _DriverBase:
@@ -225,6 +227,61 @@ class SingleMotorDriver(_DriverBase):
                 return True
             time.sleep(poll)
         return False
+
+    # --- encoder velocity feedback -----------------------------------------------------
+    # Hardware-verified 2026-08-04 (2x MD400 v8.6, 1000 PPR encoders wired, one bus):
+    # an attached encoder feeds the VELOCITY closed loop only. Reported position stays on
+    # the hall counter (counts/rev = 3 x poles) whether the encoder is on or off, so
+    # `counts_per_rev` for odometry does NOT change when you enable the encoder.
+    def get_encoder_ppr(self) -> int:
+        """Encoder pulses-per-rev setting (`PID_ENC_PPR`); 0 = encoder off (hall closed-loop)."""
+        return self.client.read_register(reg.PID_ENC_PPR)
+
+    def set_encoder_ppr(self, ppr: int, *, settle: float = ENCODER_SETTLE_S,
+                        verify: bool = True) -> None:
+        """Use an attached encoder for velocity feedback; `ppr` is its rated pulses-per-rev.
+
+        WARNING: the controller trusts this number as one revolution, so a value that does
+        not match the encoder scales the real speed by (configured / actual). A value that
+        is too LARGE therefore makes the motor turn faster than commanded while the
+        reported rpm still looks correct - there is no software symptom. Pass the value
+        printed on the encoder, and when unsure start low (too small only runs slow).
+
+        The encoder must be physically wired: with a nonzero PPR and no encoder signal the
+        controller trips `ENC_FAIL` shortly after the motor starts. Writing this register
+        can reinitialise the controller, so the write response may be lost - that is why
+        the write is followed by a settle delay and a read-back (`verify`). The setting is
+        stored in EEPROM and survives a power cycle.
+        """
+        if not 0 <= ppr <= 0xFFFF:
+            raise ValueError(f"encoder PPR must be 0..65535, got {ppr}")
+        try:
+            self.client.write_register(reg.PID_ENC_PPR, ppr)
+        except MdrobotError:
+            if not verify:
+                raise
+            # Reinitialisation can swallow the response; the read-back below decides.
+        time.sleep(settle)
+        if verify:
+            readback = self._read_encoder_ppr_retrying()
+            if readback != ppr:
+                raise MdrobotError(
+                    f"PID_ENC_PPR not applied: wrote {ppr}, read back {readback}")
+
+    def disable_encoder(self, *, settle: float = ENCODER_SETTLE_S, verify: bool = True) -> None:
+        """Turn the encoder off (`PID_ENC_PPR = 0`) and run hall closed-loop instead."""
+        self.set_encoder_ppr(0, settle=settle, verify=verify)
+
+    def _read_encoder_ppr_retrying(self, tries: int = 4, delay: float = 0.3) -> int:
+        """Read `PID_ENC_PPR`, retrying while the controller finishes reinitialising."""
+        for attempt in range(tries):
+            try:
+                return self.get_encoder_ppr()
+            except MdrobotError:
+                if attempt == tries - 1:
+                    raise
+                time.sleep(delay)
+        raise AssertionError("unreachable")  # pragma: no cover
 
     # --- slow-start / slow-down (acceleration/deceleration ramp) -----------------------
     # Speed slow hardware-verified (Phase 12); position slow still doc-based.

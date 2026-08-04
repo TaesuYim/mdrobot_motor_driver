@@ -14,6 +14,7 @@
 
 #include "mdrobot_cpp/crc.hpp"
 #include "mdrobot_cpp/device.hpp"
+#include "mdrobot_cpp/exceptions.hpp"
 #include "mdrobot_cpp/frame.hpp"
 #include "mdrobot_cpp/registers.hpp"
 
@@ -247,6 +248,60 @@ TEST(Device, SingleWaitInPositionTimeout) {
   ModbusClient client(dev, 1);
   SingleMotorDriver drv(client);
   EXPECT_FALSE(drv.wait_in_position(0.05, 0.01));
+}
+
+// --- encoder velocity feedback ---
+// settle = 0 keeps the tests fast; on hardware the default covers the controller
+// reinitialising after the write.
+
+TEST(Device, SingleGetEncoderPpr) {
+  FakeDevice dev({{PID_ENC_PPR, {1000}}});
+  ModbusClient client(dev, 1);
+  SingleMotorDriver drv(client);
+  EXPECT_EQ(drv.get_encoder_ppr(), 1000);
+}
+
+TEST(Device, SingleSetEncoderPprWritesThenVerifies) {
+  // the fake keeps registers static, so seed the value the write is expected to land on
+  FakeDevice dev({{PID_ENC_PPR, {1000}}});
+  ModbusClient client(dev, 1);
+  SingleMotorDriver drv(client);
+  drv.set_encoder_ppr(1000, 0.0);
+  ASSERT_FALSE(dev.frames.empty());
+  EXPECT_EQ(dev.frames[0], w1(PID_ENC_PPR, 1000));
+}
+
+TEST(Device, SingleDisableEncoderWritesZero) {
+  FakeDevice dev;
+  ModbusClient client(dev, 1);
+  SingleMotorDriver drv(client);
+  drv.disable_encoder(0.0);
+  ASSERT_FALSE(dev.frames.empty());
+  EXPECT_EQ(dev.frames[0], w1(PID_ENC_PPR, 0));
+}
+
+TEST(Device, SingleSetEncoderPprThrowsWhenNotApplied) {
+  FakeDevice dev;  // reads back 0, not the 1000 that was written
+  ModbusClient client(dev, 1);
+  SingleMotorDriver drv(client);
+  EXPECT_THROW(drv.set_encoder_ppr(1000, 0.0), ProtocolError);
+}
+
+TEST(Device, SingleSetEncoderPprCanSkipVerification) {
+  FakeDevice dev;
+  ModbusClient client(dev, 1);
+  SingleMotorDriver drv(client);
+  drv.set_encoder_ppr(1000, 0.0, false);
+  EXPECT_EQ(dev.frames.size(), 1u);
+  EXPECT_EQ(dev.frames[0], w1(PID_ENC_PPR, 1000));
+}
+
+TEST(Device, SingleSetEncoderPprRejectsOutOfRange) {
+  FakeDevice dev;
+  ModbusClient client(dev, 1);
+  SingleMotorDriver drv(client);
+  EXPECT_THROW(drv.set_encoder_ppr(70000, 0.0), std::invalid_argument);
+  EXPECT_TRUE(dev.frames.empty());
 }
 
 // --- DualMotorDriver ---

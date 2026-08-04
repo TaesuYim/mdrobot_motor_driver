@@ -288,10 +288,10 @@ package.
   observed resetting to 0 across a power cycle on MD400 v8.6, which silently disarms a
   CTRL stop switch. Set `use_limit_sw: 1` explicitly in the yaml (not `-1`) so
   `on_configure` re-writes it every run, and confirm with register 17.
-- **No motion at all, and an encoder is wired.** On MD400 the encoder A/B lines share
-  the CTRL limit inputs, so `use_limit_sw: 1` blocks *all* serial motion. Use
-  `use_limit_sw: 0` with an encoder — you cannot have both the encoder and the CTRL
-  stop switch on these controllers.
+- **No motion at all, and an encoder is wired.** On **older MD400 (v8.1)** the encoder A/B
+  lines share the CTRL limit inputs, so `use_limit_sw: 1` blocks *all* serial motion —
+  use `use_limit_sw: 0` there. On **v8.6 this is fixed**: an encoder and the CTRL stop
+  switch work together, so `use_limit_sw: 1` is fine.
 - **The motor turns ~0.6 s, then alarms.** The controller is in encoder mode with no
   encoder attached — write `ENC_PPR (156) = 0` once with the Python/C++ library. See
   [README → Hardware setup](README.md#hardware-setup).

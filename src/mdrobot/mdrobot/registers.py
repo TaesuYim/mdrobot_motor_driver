@@ -19,12 +19,15 @@ PID_ALARM_RESET = 12       # W  reset alarm
 PID_POSI_RESET = 13        # W  reset position to zero
 PID_INV_SIGN_CMD = 16      # R/W reference command sign inverse
 PID_USE_LIMIT_SW = 17      # R/W CTRL limit switch function (0 cancel, 1 use); default 1
+PID_HALL_TYPE = 21         # R/W motor pole / hall type (0:4p, 1:8p, 2:10p, 3:12p, 4:2p, 5:6p).
+                           #    sets the hall resolution: counts/rev = 3 x poles (10 poles -> 30).
 PID_INPUT_TYPE = 25        # R/W user input type
 PID_USE_LIMIT_SW2 = 29     # R/W motor-2 limit switch function (dual); same meaning as PID 17
 PID_CTRL_STATUS = 34       # R  status bit map
 PID_DI = 48                # R  digital input bits; essential for hardware diagnostics
 PID_IN_POSITION_OK = 49    # R  position control done (0/1)
 PID_UI_COM = 78            # R/C serial communication control (0 = CTRL I/O, 1 = serial only)
+PID_ENC_INV_DIR = 80       # R/W encoder A/B phase swap (0 normal, 1 swap)
 PID_START_STOP = 100       # C  start/stop (0 stop, 1 CCW, 2 CW); run-latch arm.
                            #    verified on hardware: must be 1 to enable serial velocity drive.
 
@@ -43,6 +46,9 @@ PID_TAR_VEL = 155          # R/W fixed target speed, rpm.
                            #    verified on hardware: NOT the speed source for START_STOP drive -> use PID_COM_TAR_SPEED.
 PID_ENC_PPR = 156          # R/W encoder pulses-per-rev; 0 = no encoder (hall closed-loop).
                            #    recent firmware (e.g. MD400 v8.6) ships in encoder mode -> set 0 for hall drive.
+                           #    hardware-verified: this feeds the VELOCITY loop only. Reported position
+                           #    stays on the hall counter (3 x poles per rev) with or without an encoder.
+                           #    See SingleMotorDriver.set_encoder_ppr for the safety note on wrong values.
 PID_REF_RPM = 166          # R  reference velocity, signed rpm
 PID_PNT_TQ_OFF = 174       # C  free/tq-off for both motors (DL motor1, DH motor2)
 PID_PNT_BRAKE = 175        # C  electric brake for both motors (DL motor1, DH motor2)

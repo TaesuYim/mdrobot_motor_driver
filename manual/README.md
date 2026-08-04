@@ -34,9 +34,15 @@ Not a reading step — a lookup companion to every page above:
 ## Hardware setup
 
 If you are **not using an encoder**, send `ENC_PPR (156) = 0` once to set the encoder
-PPR to 0. (Recent firmware ships in encoder mode; older firmware such as v8.1 needs
-nothing here.) **Until you do, the first command makes the motor lurch ~0.6 s and then
-alarm** — keep clear on the first power-up.
+PPR to 0 (`driver.disable_encoder()`). (Recent firmware ships in encoder mode; older
+firmware such as v8.1 needs nothing here.) **Until you do, the first command makes the
+motor lurch ~0.6 s and then alarm** — keep clear on the first power-up.
+
+If you **are** using an encoder, wire it and set `ENC_PPR` to the encoder's rated
+pulses-per-rev (`driver.set_encoder_ppr(1000)`). The encoder improves the controller's
+**velocity** loop only — reported position stays on the hall counter, so `counts_per_rev`
+does not change. See [Encoder](python.md#encoder-velocity-feedback) for the safety note:
+a PPR larger than the real one makes the motor turn faster than commanded.
 
 For the full ordered first-drive sequence (comms check → `ENC_PPR` → `USE_LIMIT_SW` →
 `enable()` → low rpm + dwell + a stop in reach), see the
@@ -75,8 +81,9 @@ Worth knowing:
   as soon as the next command arrives — `ros2_control` sends one every cycle.
 - `USE_LIMIT_SW` has been seen back at `0` after a power cycle, so set it at every
   startup: `use_limit_sw: 1` in the `ros2_control` yaml, or register 17 from the library.
-- On MD400 the encoder A/B lines share these inputs, so with an encoder wired
-  `USE_LIMIT_SW = 1` blocks all motion — encoder mode means no CTRL stop.
+- On **older MD400 (v8.1)** the encoder A/B lines share these inputs, so with an encoder
+  wired `USE_LIMIT_SW = 1` blocks all motion. On **v8.6 this is fixed** — an encoder and
+  the CTRL stop work together (verified with an encoder wired and `USE_LIMIT_SW = 1`).
 - Pin 7 (`RUN/BRAKE`) is overridden by the periodic velocity command, so it will not stop
   a continuously driven motor.
 

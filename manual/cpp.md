@@ -125,6 +125,14 @@ mdrobot::SingleMotorDriver drv(client);   // drv references client; keep both al
 | `get_in_position()` | `bool` | Last move arrived? |
 | `wait_in_position(double timeout=10.0, double poll=0.1)` | `bool` | Block until in-position; `true` if arrived. |
 | `set_slow_start(double s, double full_scale_s=15.0)` … | `void` / `double` | Speed/position ramp setters & getters (see Python manual). |
+| `get_encoder_ppr()` | `int` | Encoder PPR setting; `0` = encoder off (hall closed-loop). |
+| `set_encoder_ppr(int ppr, double settle=2.5, bool verify=true)` | `void` | Use the encoder; `ppr` is its **rated** pulses-per-rev. |
+| `disable_encoder(double settle=2.5, bool verify=true)` | `void` | Turn the encoder off (`ppr = 0`). |
+
+An encoder improves the **velocity** loop only — reported position stays on the hall
+counter either way. Give it the encoder's real PPR: a value larger than the real one
+makes the motor turn **faster than commanded** with no symptom in the reported speed or
+position. Full notes: [Python manual → Encoder](python.md#encoder-velocity-feedback).
 
 ## `DualMotorDriver`
 

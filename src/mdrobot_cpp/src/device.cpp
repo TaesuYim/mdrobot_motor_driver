@@ -140,6 +140,54 @@ bool SingleMotorDriver::wait_in_position(double timeout, double poll) {
   return false;
 }
 
+// --- encoder velocity feedback ---
+// Hardware-verified 2026-08-04 (2x MD400 v8.6, 1000 PPR encoders wired, one bus): an
+// attached encoder feeds the VELOCITY closed loop only. Reported position stays on the
+// hall counter (counts/rev = 3 x poles) whether the encoder is on or off.
+namespace {
+constexpr int kEncoderReadTries = 4;
+constexpr double kEncoderReadRetryS = 0.3;
+}  // namespace
+
+int SingleMotorDriver::get_encoder_ppr() {
+  return client_.read_register(PID_ENC_PPR);
+}
+
+void SingleMotorDriver::set_encoder_ppr(int ppr, double settle, bool verify) {
+  if (ppr < 0 || ppr > 0xFFFF) {
+    throw std::invalid_argument("encoder PPR must be 0..65535, got " + std::to_string(ppr));
+  }
+  try {
+    client_.write_register(PID_ENC_PPR, static_cast<uint16_t>(ppr));
+  } catch (const MdrobotError&) {
+    if (!verify) throw;
+    // Reinitialisation can swallow the response; the read-back below decides.
+  }
+  std::this_thread::sleep_for(std::chrono::duration<double>(settle));
+  if (!verify) return;
+  const int readback = read_encoder_ppr_retrying();
+  if (readback != ppr) {
+    throw ProtocolError("PID_ENC_PPR not applied: wrote " + std::to_string(ppr) +
+                        ", read back " + std::to_string(readback));
+  }
+}
+
+void SingleMotorDriver::disable_encoder(double settle, bool verify) {
+  set_encoder_ppr(0, settle, verify);
+}
+
+int SingleMotorDriver::read_encoder_ppr_retrying() {
+  for (int attempt = 0; attempt < kEncoderReadTries; ++attempt) {
+    try {
+      return get_encoder_ppr();
+    } catch (const MdrobotError&) {
+      if (attempt == kEncoderReadTries - 1) throw;
+      std::this_thread::sleep_for(std::chrono::duration<double>(kEncoderReadRetryS));
+    }
+  }
+  throw ProtocolError("unreachable");  // loop above always returns or throws
+}
+
 void SingleMotorDriver::set_slow_start(double s, double fs) { set_slow(PID_SLOW_START, s, fs); }
 double SingleMotorDriver::get_slow_start(double fs) { return get_slow(PID_SLOW_START, fs); }
 void SingleMotorDriver::set_slow_down(double s, double fs) { set_slow(PID_SLOW_DOWN, s, fs); }

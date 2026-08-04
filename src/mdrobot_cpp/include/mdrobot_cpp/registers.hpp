@@ -17,12 +17,14 @@ constexpr uint16_t PID_ALARM_RESET   = 12;
 constexpr uint16_t PID_POSI_RESET    = 13;
 constexpr uint16_t PID_INV_SIGN_CMD  = 16;
 constexpr uint16_t PID_USE_LIMIT_SW  = 17;
+constexpr uint16_t PID_HALL_TYPE     = 21;  // pole/hall type (2 = 10 poles); counts/rev = 3 x poles
 constexpr uint16_t PID_INPUT_TYPE    = 25;
 constexpr uint16_t PID_USE_LIMIT_SW2 = 29;
 constexpr uint16_t PID_CTRL_STATUS   = 34;
 constexpr uint16_t PID_DI            = 48;
 constexpr uint16_t PID_IN_POSITION_OK = 49;
 constexpr uint16_t PID_UI_COM        = 78;
+constexpr uint16_t PID_ENC_INV_DIR   = 80;  // encoder A/B phase swap (0 normal, 1 swap)
 constexpr uint16_t PID_START_STOP    = 100;
 
 // --- word command/data PIDs (101-190) ---
@@ -37,7 +39,9 @@ constexpr uint16_t PID_TQ_CMD        = 140;
 constexpr uint16_t PID_VOLT_IN       = 143;
 constexpr uint16_t PID_RETURN_TYPE   = 149;
 constexpr uint16_t PID_TAR_VEL       = 155;
-constexpr uint16_t PID_ENC_PPR       = 156;  // 0 = no encoder (hall closed-loop); recent fw ships in encoder mode
+constexpr uint16_t PID_ENC_PPR       = 156;  // 0 = no encoder (hall closed-loop); recent fw ships in encoder mode.
+                                             // Verified: feeds the VELOCITY loop only - position stays on the hall
+                                             // counter (3 x poles per rev). See SingleMotorDriver::set_encoder_ppr.
 constexpr uint16_t PID_REF_RPM       = 166;
 constexpr uint16_t PID_PNT_TQ_OFF    = 174;
 constexpr uint16_t PID_PNT_BRAKE     = 175;
